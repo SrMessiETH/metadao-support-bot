@@ -1,6 +1,6 @@
+import os
 import json
 import logging
-import os
 from datetime import datetime
 
 import gspread
@@ -8,10 +8,10 @@ from google.oauth2.service_account import Credentials
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardRemove
 from telegram.ext import (
     Application,
-    ContextTypes,
     CallbackQueryHandler,
     MessageHandler,
     ConversationHandler,
+    ContextTypes,
     filters,
 )
 
@@ -30,7 +30,6 @@ BOT_TOKEN = os.environ['BOT_TOKEN']
 SUPPORT_CHAT_ID = int(os.environ.get('SUPPORT_CHAT_ID', 0)) if os.environ.get('SUPPORT_CHAT_ID') else None
 SHEET_NAME = os.environ.get('SHEET_NAME', 'MetaDAO Support Requests')
 GOOGLE_CREDENTIALS = json.loads(os.environ['GOOGLE_CREDENTIALS'])
-
 META_CA = 'METAwkXcqyXKy1AtsSgJ8JiUHwGCafnZL38n3vYmeta'
 
 RESOURCE_LINKS = {
@@ -116,10 +115,6 @@ async def start_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_chat.type != 'private':
-        await update.callback_query.answer()
-        return
-
     query = update.callback_query
     await query.answer()
     data = query.data
@@ -208,8 +203,6 @@ async def get_question(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return ConversationHandler.END
 
 async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_chat.type != 'private':
-        return
     text = update.message.text.lower()
     if context.user_data.get('support_active'):
         return
@@ -225,39 +218,42 @@ async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 async def handle_ca(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_chat.type == 'private':
-        return
     if update.message.text.lower() == "ca":
         await update.message.reply_text(META_CA, reply_markup=ReplyKeyboardRemove())
+
+# Singleton Application
+application = None
+
 async def handler(event=None, context=None):
+    global application
+    if application is None:
+        # Lazy load application
+        application = Application.builder().token(BOT_TOKEN).build()
+
+        # Conversation handler
+        conv_handler = ConversationHandler(
+            entry_points=[CallbackQueryHandler(support_start, pattern='^support_request$')],
+            states={
+                NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_name)],
+                EMAIL: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_email)],
+                QUESTION: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_question)],
+            },
+            fallbacks=[],
+            per_message=False
+        )
+
+        # Add handlers
+        application.add_handler(CallbackQueryHandler(button_handler))
+        application.add_handler(MessageHandler(filters.Regex(r'^(CA|ca|Ca)$'), handle_ca))
+        application.add_handler(conv_handler)
+        application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, text_handler))
+        application.add_handler(MessageHandler(filters.COMMAND, text_handler))
+
+    # Process incoming update
     if event is None or 'body' not in event:
         return {"statusCode": 400, "body": "No body"}
 
-    # Create application and add handlers (singleton)
-    application = Application.builder().token(BOT_TOKEN).build()
-
-    conv_handler = ConversationHandler(
-        entry_points=[CallbackQueryHandler(support_start, pattern='^support_request$')],
-        states={
-            NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_name)],
-            EMAIL: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_email)],
-            QUESTION: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_question)],
-        },
-        fallbacks=[],
-        per_message=False
-    )
-
-    # Add handlers
-    application.add_handler(CallbackQueryHandler(button_handler))
-    application.add_handler(MessageHandler(filters.Regex(r'^(CA|ca|Ca)$'), handle_ca))
-    application.add_handler(conv_handler)
-    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, text_handler))
-    application.add_handler(MessageHandler(filters.COMMAND, text_handler))
-
-    # Deserialize update
     update = Update.de_json(json.loads(event['body']), application.bot)
-
-    # Process update immediately (no queue)
     await application.bot.process_update(update)
 
     return {"statusCode": 200, "body": "Update received"}
