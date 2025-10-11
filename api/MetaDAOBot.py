@@ -253,7 +253,7 @@ conv_handler = ConversationHandler(
         QUESTION: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_question)],
     },
     fallbacks=[],
-    per_message=True  # fix PTB warning
+    per_message=False  # ✅ fix PTB warning
 )
 
 # Add handlers
