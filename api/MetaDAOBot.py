@@ -317,3 +317,5 @@ async def main(request):
         'statusCode': 200,
         'body': 'OK'
     }
+
+handler = main
