@@ -2,16 +2,16 @@
   "version": 2,
   "builds": [
     {
-      "src": "api/MetaDAOBot.py",
+      "src": "api/index.py",
       "use": "@vercel/python",
       "config": { "maxLambdaSize": "50mb" }
     }
   ],
   "routes": [
     {
-      "src": "/api/MetaDAOBot",
+      "src": "/api/index",
       "methods": ["POST"],
-      "dest": "api/MetaDAOBot.py"
+      "dest": "api/index.py"
     }
   ]
 }
