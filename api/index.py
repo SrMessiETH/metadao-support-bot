@@ -10,7 +10,7 @@ application = Application.builder().token(BOT_TOKEN).build()
 
 # Example handler
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("Hello from Vercel!")
+    update.message.reply_text("Hello from Vercel!")
 
 # Register handlers inside a function
 def setup_handlers():
@@ -24,7 +24,7 @@ async def handler(event, context):
         return {"statusCode": 400, "body": "No body"}
     
     update = Update.de_json(json.loads(event['body']), application.bot)
-    await application.update_queue.put(update)
-    await application.update_queue.join()
+    application.update_queue.put(update)
+    application.update_queue.join()
     return {"statusCode": 200, "body": "ok"}
 
