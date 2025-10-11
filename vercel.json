@@ -9,6 +9,7 @@
   "routes": [
     {
       "src": "/api/MetaDAOBot",
+      "methods": ["POST"],
       "dest": "api/MetaDAOBot.py"
     }
   ]
