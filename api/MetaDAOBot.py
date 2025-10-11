@@ -1,5 +1,7 @@
 import json
 import logging
+from telegram.ext import Application
+from telegram.ext import ConversationHandler, CommandHandler, MessageHandler, filters
 import os
 from datetime import datetime
 
@@ -302,20 +304,7 @@ application.add_handler(conv_handler)
 application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, text_handler))
 application.add_handler(MessageHandler(filters.COMMAND, text_handler))  # Handle commands as text
 
-# Vercel serverless handler
-async def main(request):
-    # Parse the request body (Telegram sends JSON)
-    body = await request.body()
-    json_str = body.decode('utf-8')
-    update_obj = json.loads(json_str)
-    update = Update.de_json(update_obj, application.bot)
-
-    # Process the update (lifecycle managed internally)
-    await application.process_update(update)
-
-    return {
-        'statusCode': 200,
-        'body': 'OK'
-    }
-
-handler = main
+def handler(event=None, context=None):
+    # Start your Telegram bot (used by Vercel as entry point)
+    application.run_polling()
+    return {"statusCode": 200, "body": "Bot is running!"}
