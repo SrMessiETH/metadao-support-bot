@@ -1,6 +1,9 @@
+import os
+import json
 from telegram import Update
 from telegram.ext import Application
 
+# Load token from environment
 BOT_TOKEN = os.environ['BOT_TOKEN']
 
 application = Application.builder().token(BOT_TOKEN).build()
