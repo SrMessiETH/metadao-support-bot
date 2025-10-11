@@ -1,0 +1,14 @@
+# Secrets and credentials
+credentials.json
+
+# Vercel build outputs
+.vercel
+.next
+
+# Python
+__pycache__/
+*.pyc
+.env
+
+# Node.js (from your previous question)
+node_modules/
