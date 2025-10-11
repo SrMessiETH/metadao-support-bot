@@ -1,16 +1,9 @@
 {
   "version": 2,
   "builds": [
-    {
-      "src": "api/MetaDAOBot.py",
-      "use": "@vercel/python"
-    }
+    { "src": "api/MetaDAOBot.py", "use": "@vercel/python" }
   ],
   "routes": [
-    {
-      "src": "/api/MetaDAOBot",
-      "methods": ["POST"],
-      "dest": "api/MetaDAOBot.py"
-    }
+    { "src": "/api/MetaDAOBot", "dest": "api/MetaDAOBot.py" }
   ]
 }
