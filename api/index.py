@@ -1,6 +1,8 @@
 from telegram import Update
 from telegram.ext import Application
 
+BOT_TOKEN = os.environ['BOT_TOKEN']
+
 application = Application.builder().token(BOT_TOKEN).build()
 
 async def handler(event, context):
