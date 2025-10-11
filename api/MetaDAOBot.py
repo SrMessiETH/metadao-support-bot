@@ -10,13 +10,12 @@ from telegram.ext import (
     Application,
     ContextTypes,
     CallbackQueryHandler,
-    CommandHandler,
     MessageHandler,
     ConversationHandler,
     filters,
 )
 
-# Enable logging
+# Logging
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     level=logging.INFO
@@ -26,13 +25,14 @@ logger = logging.getLogger(__name__)
 # Conversation states
 NAME, EMAIL, QUESTION = range(3)
 
-# Secrets from env vars
+# Environment variables
 BOT_TOKEN = os.environ['BOT_TOKEN']
 SUPPORT_CHAT_ID = int(os.environ.get('SUPPORT_CHAT_ID', 0)) if os.environ.get('SUPPORT_CHAT_ID') else None
 SHEET_NAME = os.environ.get('SHEET_NAME', 'MetaDAO Support Requests')
 GOOGLE_CREDENTIALS = json.loads(os.environ['GOOGLE_CREDENTIALS'])
 
-# Resource links
+META_CA = 'METAwkXcqyXKy1AtsSgJ8JiUHwGCafnZL38n3vYmeta'
+
 RESOURCE_LINKS = {
     'docs': 'https://docs.metadao.fi/',
     'get_listed': 'https://docs.metadao.fi/how-launches-work/create',
@@ -43,13 +43,9 @@ RESOURCE_LINKS = {
     'proposals_finalize': 'https://docs.metadao.fi/governance/twaps',
     'entrepreneurs': 'https://docs.metadao.fi/benefits/founders',
     'investors': 'https://docs.metadao.fi/benefits/investors',
-    'calendar': 'https://www.idontbelieve.link',
-    'website': 'https://metadao.fi',
 }
 
-META_CA = 'METAwkXcqyXKy1AtsSgJ8JiUHwGCafnZL38n3vYmeta'
-
-# Inline keyboards
+# Keyboards
 def main_inline_keyboard():
     keyboard = [
         [InlineKeyboardButton("Get Listed", callback_data='get_listed')],
@@ -71,7 +67,7 @@ def proposals_inline_keyboard():
     ]
     return InlineKeyboardMarkup(keyboard)
 
-# Google Sheets client
+# Google Sheets
 def get_sheets_client():
     try:
         scopes = ['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/drive']
@@ -83,7 +79,6 @@ def get_sheets_client():
         logger.error(f"Error setting up Google Sheets: {e}")
         return None
 
-# Log request to Google Sheets
 def log_request(name, email, question, category):
     sheet = get_sheets_client()
     if sheet:
@@ -93,7 +88,7 @@ def log_request(name, email, question, category):
     else:
         logger.warning("Could not log to Google Sheets - client not available")
 
-# Forward to support chat
+# Support forward
 async def forward_to_support(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if SUPPORT_CHAT_ID:
         user = update.effective_user
@@ -109,24 +104,22 @@ async def forward_to_support(update: Update, context: ContextTypes.DEFAULT_TYPE)
         )
         await context.bot.send_message(chat_id=SUPPORT_CHAT_ID, text=message_text)
 
-# Start command
+# Handlers
 async def start_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_chat.type != 'private':
         return
     user = update.effective_user
     await update.message.reply_text(
         f'Hello {user.first_name}! Welcome to MetaDAO Support Bot.\n\n'
-        f'For more information, check our docs: https://docs.metadao.fi/\n\n'
         'Please select a category from the menu below:',
-        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Show Main Menu", callback_data='main_menu')]]),
-        disable_web_page_preview=True
+        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Show Main Menu", callback_data='main_menu')]])
     )
 
-# Button callback
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_chat.type != 'private':
         await update.callback_query.answer()
         return
+
     query = update.callback_query
     await query.answer()
     data = query.data
@@ -179,7 +172,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         context.user_data['support_active'] = True
         return NAME
 
-# Support conversation
+# Conversation Handlers
 async def support_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data['support_active'] = True
     return NAME
@@ -204,7 +197,6 @@ async def get_question(update: Update, context: ContextTypes.DEFAULT_TYPE):
     question = update.message.text
     context.user_data['question'] = question
 
-    # Log and forward
     log_request(context.user_data['name'], context.user_data['email'], question, 'Support Request')
     await forward_to_support(update, context)
 
@@ -212,11 +204,9 @@ async def get_question(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "Thank you for your submission! Our support team will review it soon.",
         reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Main Menu", callback_data='main_menu')]])
     )
-
     context.user_data.clear()
     return ConversationHandler.END
 
-# Text handler
 async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_chat.type != 'private':
         return
@@ -234,17 +224,16 @@ async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Main Menu", callback_data='main_menu')]])
     )
 
-# CA handler for groups
 async def handle_ca(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_chat.type == 'private':
         return
-    if update.message.text in ["CA", "ca", "Ca"]:
+    if update.message.text.lower() == "ca":
         await update.message.reply_text(META_CA, reply_markup=ReplyKeyboardRemove())
 
-# Build the app
+# Build application
 application = Application.builder().token(BOT_TOKEN).build()
 
-# Conversation handler
+# Conversation handler (per_message=False avoids warning)
 conv_handler = ConversationHandler(
     entry_points=[CallbackQueryHandler(support_start, pattern='^support_request$')],
     states={
@@ -253,7 +242,7 @@ conv_handler = ConversationHandler(
         QUESTION: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_question)],
     },
     fallbacks=[],
-    per_message=False  # ✅ fix PTB warning
+    per_message=False
 )
 
 # Add handlers
