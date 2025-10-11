@@ -1,8 +1,7 @@
-# api/MetaDAOBot.py
 import os
 import json
 from telegram import Update
-from telegram.ext import Application
+from telegram.ext import Application, ContextTypes, CallbackQueryHandler
 
 BOT_TOKEN = os.environ['BOT_TOKEN']
 
@@ -13,5 +12,5 @@ async def handler(event, context):
         return {"statusCode": 400, "body": "No body"}
     update = Update.de_json(json.loads(event['body']), application.bot)
     await application.update_queue.put(update)
-    await application.update_queue.join()  # process immediately
+    await application.update_queue.join()
     return {"statusCode": 200, "body": "ok"}
