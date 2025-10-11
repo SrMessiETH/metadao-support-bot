@@ -229,18 +229,13 @@ async def handle_ca(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     if update.message.text.lower() == "ca":
         await update.message.reply_text(META_CA, reply_markup=ReplyKeyboardRemove())
-
-# =========================
-# VERCEL WEBHOOK HANDLER
-# =========================
 async def handler(event=None, context=None):
     if event is None or 'body' not in event:
         return {"statusCode": 400, "body": "No body"}
 
-    # Create Application inside handler (Vercel compatible)
+    # Create application and add handlers (singleton)
     application = Application.builder().token(BOT_TOKEN).build()
 
-    # Conversation handler (per_message=False avoids warning)
     conv_handler = ConversationHandler(
         entry_points=[CallbackQueryHandler(support_start, pattern='^support_request$')],
         states={
@@ -259,7 +254,10 @@ async def handler(event=None, context=None):
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, text_handler))
     application.add_handler(MessageHandler(filters.COMMAND, text_handler))
 
+    # Deserialize update
     update = Update.de_json(json.loads(event['body']), application.bot)
-    await application.update_queue.put(update)
+
+    # Process update immediately (no queue)
+    await application.bot.process_update(update)
 
     return {"statusCode": 200, "body": "Update received"}
