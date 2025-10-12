@@ -209,7 +209,11 @@ async def help_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         "*Available Commands:*\n"
         "/start - Start the bot and show main menu\n"
         "/help - Show this help message\n"
-        "/cancel - Cancel current operation\n\n"
+        "/cancel - Cancel current operation\n"
+        "/ca - Get META contract address\n"
+        "/web - Get MetaDAO website link\n"
+        "/docs - Get documentation link\n"
+        "/icos - Get calendar and ICOs link\n\n"
         "*How to use:*\n"
         "• Use the inline menu buttons to navigate\n"
         "• Select 'Support Request' to submit a question\n"
@@ -510,6 +514,34 @@ async def get_listed_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) 
         return ConversationHandler.END
     return ConversationHandler.END
 
+# CA command handler - works in all chat types
+async def ca_command_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    await update.message.reply_text(
+        f"META Contract Address:\n`{META_CA}`",
+        parse_mode='Markdown'
+    )
+
+# Web command handler - works in all chat types
+async def web_command_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    await update.message.reply_text(
+        f"MetaDAO Website:\n{RESOURCE_LINKS['website']}",
+        disable_web_page_preview=True
+    )
+
+# Docs command handler - works in all chat types
+async def docs_command_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    await update.message.reply_text(
+        f"MetaDAO Documentation:\n{RESOURCE_LINKS['docs']}",
+        disable_web_page_preview=True
+    )
+
+# ICOs command handler - works in all chat types
+async def icos_command_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    await update.message.reply_text(
+        f"MetaDAO Calendar & ICOs:\n{RESOURCE_LINKS['icos']}",
+        disable_web_page_preview=True
+    )
+
 # CA handler
 async def handle_ca(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if update.effective_chat.type == 'private':
@@ -573,10 +605,15 @@ async def get_application():
             fallbacks=[CommandHandler('cancel', cancel_handler, filters=filters.ChatType.PRIVATE)],
         )
 
-        # Add handlers in correct order
         _application.add_handler(CommandHandler('start', start_handler, filters=filters.ChatType.PRIVATE))
         _application.add_handler(CommandHandler('help', help_handler, filters=filters.ChatType.PRIVATE))
         _application.add_handler(CommandHandler('cancel', cancel_handler, filters=filters.ChatType.PRIVATE))
+        
+        _application.add_handler(CommandHandler('ca', ca_command_handler))
+        _application.add_handler(CommandHandler('web', web_command_handler))
+        _application.add_handler(CommandHandler('docs', docs_command_handler))
+        _application.add_handler(CommandHandler('icos', icos_command_handler))
+        
         _application.add_handler(get_listed_conv_handler)
         _application.add_handler(conv_handler)
         _application.add_handler(CallbackQueryHandler(button_handler, pattern='^(?!get_listed$|support_request$)'))
@@ -588,18 +625,22 @@ async def get_application():
         await _application.initialize()
         await _application.bot.initialize()
         
-        commands = [
+        private_commands = [
             BotCommand("start", "Start the bot and show main menu"),
             BotCommand("help", "Show help information"),
             BotCommand("cancel", "Cancel current operation")
         ]
-        # Set commands for private chats only
-        await _application.bot.set_my_commands(commands, scope=BotCommandScopeAllPrivateChats())
+        await _application.bot.set_my_commands(private_commands, scope=BotCommandScopeAllPrivateChats())
         
-        # Set empty commands for groups to hide them
-        await _application.bot.set_my_commands([], scope=BotCommandScopeAllGroupChats())
+        group_commands = [
+            BotCommand("ca", "Get META contract address"),
+            BotCommand("web", "Get MetaDAO website link"),
+            BotCommand("docs", "Get documentation link"),
+            BotCommand("icos", "Get calendar and ICOs link")
+        ]
+        await _application.bot.set_my_commands(group_commands, scope=BotCommandScopeAllGroupChats())
         
-        logger.info("Bot commands set for private chats only")
+        logger.info("Bot commands configured: private commands for private chats, group commands for groups")
         _initialized = True
     
     return _application
