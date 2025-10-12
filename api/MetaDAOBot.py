@@ -50,7 +50,6 @@ RESOURCE_LINKS = {
     'proposal': 'https://docs.metadao.fi/governance/proposals',
     'calendar': 'https://www.idontbelieve.link',
     'website': 'https://metadao.fi',
-    'umbra': 'https://metadao.fi/projects/umbra/fundraise',
     'avici': 'https://www.idontbelieve.link/?p=27eeb88879cf81a5b421cee972236ed6&pm=c',
     'paystream': 'https://www.idontbelieve.link/?p=27eeb88879cf81bb9374eb8a1009d4ff&pm=c',
     'loyal': 'https://www.idontbelieve.link/?p=27eeb88879cf81339324e7f98d8dbd9f&pm=c',
@@ -63,13 +62,6 @@ RESOURCE_LINKS = {
 PROJECT_INFO = {
     'meta': {
         'ca': 'METAwkXcqyXKy1AtsSgJ8JiUHwGCafnZL38n3vYmeta'
-    },
-    'umbra': {
-        'ca': 'TBA (Token not yet launched - check after ICO completion)',
-        'max_supply': '28.5 million tokens',
-        'min_target': '$750K',
-        'max_target': 'Is blind and will reveal when ICO ends',
-        'tokenomics': 'https://x.com/UmbraPrivacy/status/1973785682872062014'
     }
 }
 META_CA = 'METAwkXcqyXKy1AtsSgJ8JiUHwGCafnZL38n3vYmeta'
