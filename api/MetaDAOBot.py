@@ -140,7 +140,7 @@ def log_request(name, email, question, category, extra_data=None):
     if sheet:
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         
-        if category == 'Support Requests':
+        if category == 'Support Request':
             # Horizontal layout - append one row
             row = [timestamp, name, email, question, category]
             sheet.append_row(row)
