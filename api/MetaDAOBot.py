@@ -19,6 +19,9 @@ logger = logging.getLogger(__name__)
 # States for support conversation
 NAME, EMAIL, QUESTION = range(3)
 
+# States for get listed conversation
+GET_LISTED_CONFIRM, PROJECT_NAME_SHORT, PROJECT_DESC_LONG, TOKEN_NAME, TOKEN_TICKER, PROJECT_IMAGE, TOKEN_IMAGE, MIN_RAISE, MONTHLY_BUDGET, PERFORMANCE_PACKAGE, PERFORMANCE_UNLOCK_TIME, INTELLECTUAL_PROPERTY = range(12, 24)
+
 # Secrets from env vars
 BOT_TOKEN = os.environ.get('BOT_TOKEN')
 if not BOT_TOKEN:
@@ -38,7 +41,8 @@ else:
 RESOURCE_LINKS = {
     'docs': 'https://docs.metadao.fi/',
     'get_listed': 'https://docs.metadao.fi/how-launches-work/create',
-    'icos': 'https://docs.metadao.fi/how-launches-work/sale',
+    'icos': 'https://www.idontbelieve.link',
+    'how_launches_work': 'https://docs.metadao.fi/how-launches-work/sale',
     'futarchy_intro': 'https://docs.metadao.fi/governance/overview',
     'proposals_create': 'https://docs.metadao.fi/governance/proposals',
     'proposals_trade': 'https://docs.metadao.fi/governance/markets',
@@ -78,6 +82,7 @@ def main_inline_keyboard():
     keyboard = [
         [InlineKeyboardButton("Get Listed", callback_data='get_listed')],
         [InlineKeyboardButton("ICOs", callback_data='icos')],
+        [InlineKeyboardButton("How Launches Work", callback_data='how_launches_work')],
         [InlineKeyboardButton("Introduction to Futarchy", callback_data='futarchy_intro')],
         [InlineKeyboardButton("Proposals", callback_data='proposals')],
         [InlineKeyboardButton("For Entrepreneurs", callback_data='entrepreneurs')],
@@ -110,12 +115,31 @@ def get_sheets_client():
         return None
 
 # Function to log request to Google Sheets
-def log_request(name, email, question, category):
+def log_request(name, email, question, category, extra_data=None):
     sheet = get_sheets_client()
     if sheet:
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        sheet.append_row([timestamp, name, email, question, category])
-        logger.info(f"Request logged: {name}, {email}, {question}, {category}")
+        if extra_data:
+            # For get listed submissions with detailed data
+            row = [timestamp, name, email, category]
+            row.extend([
+                extra_data.get('project_name_short', ''),
+                extra_data.get('project_desc_long', ''),
+                extra_data.get('token_name', ''),
+                extra_data.get('token_ticker', ''),
+                extra_data.get('project_image', ''),
+                extra_data.get('token_image', ''),
+                extra_data.get('min_raise', ''),
+                extra_data.get('monthly_budget', ''),
+                extra_data.get('performance_package', ''),
+                extra_data.get('performance_unlock_time', ''),
+                extra_data.get('intellectual_property', '')
+            ])
+            sheet.append_row(row)
+        else:
+            # For simple support requests
+            sheet.append_row([timestamp, name, email, question, category])
+        logger.info(f"Request logged: {name}, {email}, {category}")
     else:
         logger.warning("Could not log to Google Sheets - client not available")
 
@@ -252,10 +276,10 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         )
         return
 
-    # Handle main categories
+    # Handle main categories (excluding get_listed which is now a conversation)
     category_map = {
-        'get_listed': 'Get Listed',
         'icos': 'ICOs',
+        'how_launches_work': 'How Launches Work',
         'futarchy_intro': 'Introduction to Futarchy',
         'entrepreneurs': 'For Entrepreneurs',
         'investors': 'For Investors',
@@ -319,6 +343,267 @@ async def get_question(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
     context.user_data['support_active'] = False
     return ConversationHandler.END
 
+# Get listed conversation handlers
+async def get_listed_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Start the get listed conversation"""
+    query = update.callback_query
+    await query.answer()
+    
+    keyboard = [
+        [InlineKeyboardButton("Yes, I want to get listed", callback_data='get_listed_yes')],
+        [InlineKeyboardButton("Back to Main Menu", callback_data='main_menu')]
+    ]
+    
+    await query.edit_message_text(
+        "Would you like to submit your project to get listed on MetaDAO?\n\n"
+        "You'll need to provide detailed information about your project including:\n"
+        "• Project name and description\n"
+        "• Token details\n"
+        "• Fundraising information\n"
+        "• Performance package configuration\n"
+        "• Intellectual property\n\n"
+        "This will take about 5-10 minutes to complete.",
+        reply_markup=InlineKeyboardMarkup(keyboard)
+    )
+    context.user_data['get_listed_active'] = True
+    return GET_LISTED_CONFIRM
+
+async def get_listed_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Handle confirmation to proceed with get listed"""
+    query = update.callback_query
+    await query.answer()
+    
+    if query.data == 'main_menu':
+        context.user_data.clear()
+        await query.edit_message_text("Main Menu:", reply_markup=main_inline_keyboard())
+        return ConversationHandler.END
+    
+    await query.edit_message_text(
+        "Great! Let's start with your project details.\n\n"
+        "Please provide your project name and a short description (1-2 sentences):\n\n"
+        "Example: Omnipair - A decentralized exchange aggregator that finds the best prices across multiple DEXs."
+    )
+    return PROJECT_NAME_SHORT
+
+async def get_project_name_short(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Get project name and short description"""
+    if not context.user_data.get('get_listed_active'):
+        return ConversationHandler.END
+    
+    context.user_data['project_name_short'] = update.message.text
+    await update.message.reply_text(
+        "Thank you! Now please provide a longer, more detailed description of your project.\n\n"
+        "Explain what your project does, why it's valuable, and why someone should want to participate in its upside.\n"
+        "(This will be displayed on the MetaDAO website)"
+    )
+    return PROJECT_DESC_LONG
+
+async def get_project_desc_long(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Get long project description"""
+    if not context.user_data.get('get_listed_active'):
+        return ConversationHandler.END
+    
+    context.user_data['project_desc_long'] = update.message.text
+    await update.message.reply_text(
+        "Excellent! Now let's get your token details.\n\n"
+        "What is your token name?\n\n"
+        "Example: Omnipair"
+    )
+    return TOKEN_NAME
+
+async def get_token_name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Get token name"""
+    if not context.user_data.get('get_listed_active'):
+        return ConversationHandler.END
+    
+    context.user_data['token_name'] = update.message.text
+    await update.message.reply_text(
+        "What is your token ticker?\n\n"
+        "Example: OMFG\n\n"
+        "We recommend using memorable and unique tickers."
+    )
+    return TOKEN_TICKER
+
+async def get_token_ticker(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Get token ticker"""
+    if not context.user_data.get('get_listed_active'):
+        return ConversationHandler.END
+    
+    context.user_data['token_ticker'] = update.message.text
+    await update.message.reply_text(
+        "Please provide the URL for your project image.\n\n"
+        "This will be displayed on the MetaDAO site and trading venues like Jupiter.\n\n"
+        "Example: https://example.com/project-logo.png"
+    )
+    return PROJECT_IMAGE
+
+async def get_project_image(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Get project image URL"""
+    if not context.user_data.get('get_listed_active'):
+        return ConversationHandler.END
+    
+    context.user_data['project_image'] = update.message.text
+    await update.message.reply_text(
+        "Do you have a different token image, or is it the same as your project image?\n\n"
+        "If it's the same, type 'same'\n"
+        "If different, provide the URL for your token image."
+    )
+    return TOKEN_IMAGE
+
+async def get_token_image(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Get token image URL"""
+    if not context.user_data.get('get_listed_active'):
+        return ConversationHandler.END
+    
+    text = update.message.text
+    if text.lower() == 'same':
+        context.user_data['token_image'] = context.user_data['project_image']
+    else:
+        context.user_data['token_image'] = text
+    
+    await update.message.reply_text(
+        "Now let's discuss fundraising details.\n\n"
+        "What is your minimum raise amount?\n\n"
+        "This is how much your project needs for you to proceed. If the project raises less than this amount, the sale will be refunded.\n\n"
+        "Example: $750,000"
+    )
+    return MIN_RAISE
+
+async def get_min_raise(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Get minimum raise amount"""
+    if not context.user_data.get('get_listed_active'):
+        return ConversationHandler.END
+    
+    context.user_data['min_raise'] = update.message.text
+    await update.message.reply_text(
+        "What is your monthly team budget?\n\n"
+        "This is how much the team needs every month from the treasury to operate normally. "
+        "Spends larger than this need to be approved by governance.\n\n"
+        "Note: This can be no larger than 1/6th of the minimum raise amount.\n\n"
+        "Example: $50,000"
+    )
+    return MONTHLY_BUDGET
+
+async def get_monthly_budget(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Get monthly team budget"""
+    if not context.user_data.get('get_listed_active'):
+        return ConversationHandler.END
+    
+    context.user_data['monthly_budget'] = update.message.text
+    await update.message.reply_text(
+        "Performance Package Configuration:\n\n"
+        "After the ICO, 10M tokens go to sale participants and 5M tokens go to liquidity. "
+        "You can choose for up to 15M tokens to be pre-allocated to a performance package.\n\n"
+        "This package is split into 5 equal tranches, unlocking at 2x, 4x, 8x, 16x, and 32x the ICO price.\n\n"
+        "How many tokens do you want to allocate to the performance package? (0 to 15,000,000)\n\n"
+        "Example: 10000000"
+    )
+    return PERFORMANCE_PACKAGE
+
+async def get_performance_package(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Get performance package allocation"""
+    if not context.user_data.get('get_listed_active'):
+        return ConversationHandler.END
+    
+    context.user_data['performance_package'] = update.message.text
+    await update.message.reply_text(
+        "What is the minimum unlock time for the performance package?\n\n"
+        "This must be at least 18 months from ICO date but can be longer if you wish.\n\n"
+        "Example: 24 months"
+    )
+    return PERFORMANCE_UNLOCK_TIME
+
+async def get_performance_unlock_time(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Get performance package unlock time"""
+    if not context.user_data.get('get_listed_active'):
+        return ConversationHandler.END
+    
+    context.user_data['performance_unlock_time'] = update.message.text
+    await update.message.reply_text(
+        "Finally, please list the intellectual properties that the founder(s) will give up to the project's entity.\n\n"
+        "This includes but is not limited to:\n"
+        "• Domain names\n"
+        "• Software/code repositories\n"
+        "• Social media accounts\n"
+        "• Trademarks\n\n"
+        "Please list all intellectual property:"
+    )
+    return INTELLECTUAL_PROPERTY
+
+async def get_intellectual_property(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Get intellectual property list and complete submission"""
+    if not context.user_data.get('get_listed_active'):
+        return ConversationHandler.END
+    
+    context.user_data['intellectual_property'] = update.message.text
+    
+    # Validate all fields are filled
+    required_fields = [
+        'project_name_short', 'project_desc_long', 'token_name', 'token_ticker',
+        'project_image', 'token_image', 'min_raise', 'monthly_budget',
+        'performance_package', 'performance_unlock_time', 'intellectual_property'
+    ]
+    
+    missing_fields = [field for field in required_fields if not context.user_data.get(field)]
+    
+    if missing_fields:
+        await update.message.reply_text(
+            f"Error: The following fields are missing: {', '.join(missing_fields)}\n\n"
+            "Please start over by typing /cancel and then selecting Get Listed again.",
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Main Menu", callback_data='main_menu')]])
+        )
+        context.user_data.clear()
+        return ConversationHandler.END
+    
+    # Prepare data for logging
+    extra_data = {
+        'project_name_short': context.user_data['project_name_short'],
+        'project_desc_long': context.user_data['project_desc_long'],
+        'token_name': context.user_data['token_name'],
+        'token_ticker': context.user_data['token_ticker'],
+        'project_image': context.user_data['project_image'],
+        'token_image': context.user_data['token_image'],
+        'min_raise': context.user_data['min_raise'],
+        'monthly_budget': context.user_data['monthly_budget'],
+        'performance_package': context.user_data['performance_package'],
+        'performance_unlock_time': context.user_data['performance_unlock_time'],
+        'intellectual_property': context.user_data['intellectual_property']
+    }
+    
+    # Log to Google Sheets
+    user = update.effective_user
+    log_request(
+        name=user.first_name or 'Unknown',
+        email=f"@{user.username}" if user.username else f"User ID: {user.id}",
+        question='',
+        category='Get Listed Submission',
+        extra_data=extra_data
+    )
+    
+    # Send confirmation
+    await update.message.reply_text(
+        "Thank you for your submission! 🎉\n\n"
+        "Your project listing request has been received and will be reviewed by the MetaDAO team.\n\n"
+        "We'll contact you soon with next steps.\n\n"
+        f"Project: {context.user_data['token_name']} ({context.user_data['token_ticker']})",
+        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Main Menu", callback_data='main_menu')]])
+    )
+    
+    context.user_data.clear()
+    context.user_data['get_listed_active'] = False
+    return ConversationHandler.END
+
+async def get_listed_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Cancel get listed conversation"""
+    if context.user_data.get('get_listed_active'):
+        context.user_data.clear()
+        await update.message.reply_text(
+            "Get listed submission cancelled.",
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Main Menu", callback_data='main_menu')]])
+        )
+        return ConversationHandler.END
+    return ConversationHandler.END
+
 # Text message handler for non-support
 async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if update.effective_chat.type != 'private':
@@ -357,7 +642,27 @@ async def handle_ca(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
 application = Application.builder().token(BOT_TOKEN).build()
 
-# Conversation handler
+# Get listed conversation handler
+get_listed_conv_handler = ConversationHandler(
+    entry_points=[CallbackQueryHandler(get_listed_start, pattern='^get_listed$')],
+    states={
+        GET_LISTED_CONFIRM: [CallbackQueryHandler(get_listed_confirm)],
+        PROJECT_NAME_SHORT: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_project_name_short)],
+        PROJECT_DESC_LONG: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_project_desc_long)],
+        TOKEN_NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_token_name)],
+        TOKEN_TICKER: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_token_ticker)],
+        PROJECT_IMAGE: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_project_image)],
+        TOKEN_IMAGE: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_token_image)],
+        MIN_RAISE: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_min_raise)],
+        MONTHLY_BUDGET: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_monthly_budget)],
+        PERFORMANCE_PACKAGE: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_performance_package)],
+        PERFORMANCE_UNLOCK_TIME: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_performance_unlock_time)],
+        INTELLECTUAL_PROPERTY: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_intellectual_property)],
+    },
+    fallbacks=[CommandHandler('cancel', get_listed_cancel)],
+)
+
+# Support conversation handler
 conv_handler = ConversationHandler(
     entry_points=[CallbackQueryHandler(support_start, pattern='^support_request$')],
     states={
@@ -365,13 +670,14 @@ conv_handler = ConversationHandler(
         EMAIL: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_email)],
         QUESTION: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_question)],
     },
-    fallbacks=[CommandHandler('cancel', cancel_handler)],  # Added cancel to conversation fallbacks
+    fallbacks=[CommandHandler('cancel', cancel_handler)],
 )
 
 # Add handlers
-application.add_handler(CommandHandler('start', start_handler))  # Added explicit start command handler
-application.add_handler(CommandHandler('help', help_handler))  # Added help command handler
-application.add_handler(CommandHandler('cancel', cancel_handler))  # Added cancel command handler
+application.add_handler(CommandHandler('start', start_handler))
+application.add_handler(CommandHandler('help', help_handler))
+application.add_handler(CommandHandler('cancel', cancel_handler))
+application.add_handler(get_listed_conv_handler)
 application.add_handler(CallbackQueryHandler(button_handler))
 application.add_handler(MessageHandler(filters.Regex(r'^(CA|ca|Ca)$'), handle_ca))
 application.add_handler(conv_handler)
