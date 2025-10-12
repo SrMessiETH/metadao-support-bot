@@ -117,20 +117,7 @@ def get_sheets_client(sheet_name='Support Requests'):
         except gspread.exceptions.WorksheetNotFound:
             logger.info(f"Sheet '{sheet_name}' not found, creating it...")
             sheet = spreadsheet.add_worksheet(title=sheet_name, rows=1000, cols=20)
-            
-            # Add headers based on sheet type
-            if sheet_name == 'Get Listed':
-                headers = [
-                    'Timestamp', 'Project Name', 'Contact', 'Category',
-                    'Project Name Short', 'Project Description', 'Token Name', 'Token Ticker',
-                    'Project Image', 'Token Image', 'Min Raise', 'Monthly Budget',
-                    'Performance Package', 'Performance Unlock Time', 'Intellectual Property'
-                ]
-            else:  # Support Requests
-                headers = ['Timestamp', 'Name', 'Email', 'Question', 'Category']
-            
-            sheet.append_row(headers)
-            logger.info(f"Created sheet '{sheet_name}' with headers")
+            logger.info(f"Created sheet '{sheet_name}' for vertical data format")
         
         return sheet
     except Exception as e:
@@ -144,27 +131,41 @@ def log_request(name, email, question, category, extra_data=None):
     
     if sheet:
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        
+        # Prepare rows to append vertically
+        rows = []
+        
         if extra_data:
             # For get listed submissions with detailed data
-            row = [timestamp, name, email, category]
-            row.extend([
-                extra_data.get('project_name_short', ''),
-                extra_data.get('project_desc_long', ''),
-                extra_data.get('token_name', ''),
-                extra_data.get('token_ticker', ''),
-                extra_data.get('project_image', ''),
-                extra_data.get('token_image', ''),
-                extra_data.get('min_raise', ''),
-                extra_data.get('monthly_budget', ''),
-                extra_data.get('performance_package', ''),
-                extra_data.get('performance_unlock_time', ''),
-                extra_data.get('intellectual_property', '')
-            ])
-            sheet.append_row(row)
+            rows.append(['Timestamp', timestamp])
+            rows.append(['Project Name', name])
+            rows.append(['Contact', email])
+            rows.append(['Category', category])
+            rows.append(['Project Name Short', extra_data.get('project_name_short', '')])
+            rows.append(['Project Description', extra_data.get('project_desc_long', '')])
+            rows.append(['Token Name', extra_data.get('token_name', '')])
+            rows.append(['Token Ticker', extra_data.get('token_ticker', '')])
+            rows.append(['Project Image', extra_data.get('project_image', '')])
+            rows.append(['Token Image', extra_data.get('token_image', '')])
+            rows.append(['Min Raise', extra_data.get('min_raise', '')])
+            rows.append(['Monthly Budget', extra_data.get('monthly_budget', '')])
+            rows.append(['Performance Package', extra_data.get('performance_package', '')])
+            rows.append(['Performance Unlock Time', extra_data.get('performance_unlock_time', '')])
+            rows.append(['Intellectual Property', extra_data.get('intellectual_property', '')])
         else:
             # For simple support requests
-            sheet.append_row([timestamp, name, email, question, category])
-        logger.info(f"Request logged to '{sheet_name}' sheet: {name}, {email}, {category}")
+            rows.append(['Timestamp', timestamp])
+            rows.append(['Name', name])
+            rows.append(['Email', email])
+            rows.append(['Question', question])
+            rows.append(['Category', category])
+        
+        # Add a blank row as separator between submissions
+        rows.append(['', ''])
+        
+        # Append all rows at once
+        sheet.append_rows(rows)
+        logger.info(f"Request logged vertically to '{sheet_name}' sheet: {name}, {email}, {category}")
     else:
         logger.warning("Could not log to Google Sheets - client not available")
 
