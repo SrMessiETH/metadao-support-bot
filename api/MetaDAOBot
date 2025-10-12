@@ -29,58 +29,46 @@ application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, text_han
 application.add_handler(MessageHandler(filters.COMMAND, text_handler))  # Handle commands as text
 
 # Vercel serverless function handler for Telegram webhook
+from http.server import BaseHTTPRequestHandler
 import json
-from telegram.ext import Application, Update, CallbackQueryHandler, MessageHandler, filters, CommandHandler
-import asyncio
-import logging
 
-logger = logging.getLogger(__name__)
-
-def handler(environ, start_response):
-    """Vercel WSGI handler for Telegram webhook"""
-    try:
-        # Get request method
-        method = environ.get('REQUEST_METHOD', 'GET')
-        
-        if method == 'POST':
+class handler(BaseHTTPRequestHandler):
+    def do_POST(self):
+        """Handle POST requests from Telegram webhook"""
+        try:
             # Read request body
-            try:
-                content_length = int(environ.get('CONTENT_LENGTH', 0))
-            except ValueError:
-                content_length = 0
-            
-            request_body = environ['wsgi.input'].read(content_length)
+            content_length = int(self.headers.get('Content-Length', 0))
+            body = self.rfile.read(content_length)
             
             # Parse JSON update from Telegram
-            update_data = json.loads(request_body.decode('utf-8'))
-            update = Update.de_json(update_data, application.bot)
+            update_dict = json.loads(body.decode('utf-8'))
             
-            # Process the update asynchronously
+            # Create Update object
+            update = Update.de_json(update_dict, application.bot)
+            
+            # Process update synchronously using asyncio
+            import asyncio
             asyncio.run(application.process_update(update))
             
-            # Return success response
-            status = '200 OK'
-            headers = [('Content-Type', 'application/json')]
-            start_response(status, headers)
-            return [json.dumps({"ok": True}).encode('utf-8')]
+            # Send success response
+            self.send_response(200)
+            self.send_header('Content-Type', 'application/json')
+            self.end_headers()
+            response = json.dumps({'ok': True})
+            self.wfile.write(response.encode('utf-8'))
             
-        elif method == 'GET':
-            # Health check endpoint
-            status = '200 OK'
-            headers = [('Content-Type', 'text/plain')]
-            start_response(status, headers)
-            return [b'MetaDAO Bot is running!']
-        
-        else:
-            # Method not allowed
-            status = '405 Method Not Allowed'
-            headers = [('Content-Type', 'text/plain')]
-            start_response(status, headers)
-            return [b'Method Not Allowed']
-            
-    except Exception as e:
-        logger.error(f"Handler error: {e}")
-        status = '500 Internal Server Error'
-        headers = [('Content-Type', 'application/json')]
-        start_response(status, headers)
-        return [json.dumps({"ok": False, "error": str(e)}).encode('utf-8')]
+        except Exception as e:
+            # Log error and send error response
+            print(f"[v0] Error processing webhook: {e}")
+            self.send_response(500)
+            self.send_header('Content-Type', 'application/json')
+            self.end_headers()
+            response = json.dumps({'ok': False, 'error': str(e)})
+            self.wfile.write(response.encode('utf-8'))
+    
+    def do_GET(self):
+        """Handle GET requests for health check"""
+        self.send_response(200)
+        self.send_header('Content-Type', 'text/plain')
+        self.end_headers()
+        self.wfile.write(b'MetaDAO Bot is running!')
