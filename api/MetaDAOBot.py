@@ -504,67 +504,71 @@ async def handle_ca(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     pass
 
-# Build application
-application = Application.builder().token(BOT_TOKEN).build()
-
-# Get listed conversation handler
-get_listed_conv_handler = ConversationHandler(
-    entry_points=[CallbackQueryHandler(get_listed_start, pattern='^get_listed$')],
-    states={
-        GET_LISTED_CONFIRM: [CallbackQueryHandler(get_listed_confirm)],
-        PROJECT_NAME_SHORT: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_project_name_short)],
-        PROJECT_DESC_LONG: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_project_desc_long)],
-        TOKEN_NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_token_name)],
-        TOKEN_TICKER: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_token_ticker)],
-        PROJECT_IMAGE: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_project_image)],
-        TOKEN_IMAGE: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_token_image)],
-        MIN_RAISE: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_min_raise)],
-        MONTHLY_BUDGET: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_monthly_budget)],
-        PERFORMANCE_PACKAGE: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_performance_package)],
-        PERFORMANCE_UNLOCK_TIME: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_performance_unlock_time)],
-        INTELLECTUAL_PROPERTY: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_intellectual_property)],
-    },
-    fallbacks=[CommandHandler('cancel', get_listed_cancel)],
-)
-
-# Support conversation handler
-conv_handler = ConversationHandler(
-    entry_points=[CallbackQueryHandler(support_start, pattern='^support_request$')],
-    states={
-        NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_name)],
-        EMAIL: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_email)],
-        QUESTION: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_question)],
-    },
-    fallbacks=[CommandHandler('cancel', cancel_handler)],
-)
-
-# Add handlers in correct order
-application.add_handler(CommandHandler('start', start_handler))
-application.add_handler(CommandHandler('help', help_handler))
-application.add_handler(CommandHandler('cancel', cancel_handler))
-application.add_handler(get_listed_conv_handler)
-application.add_handler(conv_handler)
-application.add_handler(CallbackQueryHandler(button_handler, pattern='^(?!get_listed$|support_request$)'))
-application.add_handler(MessageHandler(filters.Regex(r'^(CA|ca|Ca)$'), handle_ca))
-application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, text_handler))
-application.add_handler(MessageHandler(filters.COMMAND, text_handler))
-
 _initialized = False
+_application = None
 
-async def ensure_initialized():
-    """Ensure application is initialized before processing updates"""
-    global _initialized
+async def get_application():
+    """Get or create application instance with proper event loop binding"""
+    global _application, _initialized
+    
+    if _application is None:
+        _application = Application.builder().token(BOT_TOKEN).build()
+        
+        # Get listed conversation handler
+        get_listed_conv_handler = ConversationHandler(
+            entry_points=[CallbackQueryHandler(get_listed_start, pattern='^get_listed$')],
+            states={
+                GET_LISTED_CONFIRM: [CallbackQueryHandler(get_listed_confirm)],
+                PROJECT_NAME_SHORT: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_project_name_short)],
+                PROJECT_DESC_LONG: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_project_desc_long)],
+                TOKEN_NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_token_name)],
+                TOKEN_TICKER: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_token_ticker)],
+                PROJECT_IMAGE: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_project_image)],
+                TOKEN_IMAGE: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_token_image)],
+                MIN_RAISE: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_min_raise)],
+                MONTHLY_BUDGET: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_monthly_budget)],
+                PERFORMANCE_PACKAGE: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_performance_package)],
+                PERFORMANCE_UNLOCK_TIME: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_performance_unlock_time)],
+                INTELLECTUAL_PROPERTY: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_intellectual_property)],
+            },
+            fallbacks=[CommandHandler('cancel', get_listed_cancel)],
+        )
+
+        # Support conversation handler
+        conv_handler = ConversationHandler(
+            entry_points=[CallbackQueryHandler(support_start, pattern='^support_request$')],
+            states={
+                NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_name)],
+                EMAIL: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_email)],
+                QUESTION: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_question)],
+            },
+            fallbacks=[CommandHandler('cancel', cancel_handler)],
+        )
+
+        # Add handlers in correct order
+        _application.add_handler(CommandHandler('start', start_handler))
+        _application.add_handler(CommandHandler('help', help_handler))
+        _application.add_handler(CommandHandler('cancel', cancel_handler))
+        _application.add_handler(get_listed_conv_handler)
+        _application.add_handler(conv_handler)
+        _application.add_handler(CallbackQueryHandler(button_handler, pattern='^(?!get_listed$|support_request$)'))
+        _application.add_handler(MessageHandler(filters.Regex(r'^(CA|ca|Ca)$'), handle_ca))
+        _application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, text_handler))
+        _application.add_handler(MessageHandler(filters.COMMAND, text_handler))
+    
     if not _initialized:
-        await application.initialize()
-        await application.bot.initialize()
+        await _application.initialize()
+        await _application.bot.initialize()
         commands = [
             BotCommand("start", "Start the bot and show main menu"),
             BotCommand("help", "Show help information"),
             BotCommand("cancel", "Cancel current operation")
         ]
-        await application.bot.set_my_commands(commands)
+        await _application.bot.set_my_commands(commands)
         logger.info("Bot commands menu set successfully")
         _initialized = True
+    
+    return _application
 
 _processing_updates = set()
 _update_cleanup_tasks = {}
@@ -601,11 +605,7 @@ class handler(BaseHTTPRequestHandler):
             
             logger.info(f"Processing update {update_id}")
             
-            # Create Update object
-            update = Update.de_json(update_dict, application.bot)
-            
-            # Use asyncio.run() which properly manages event loop lifecycle
-            asyncio.run(self._process_update_async(update, update_id))
+            asyncio.run(self._process_update_async(update_dict, update_id))
             
         except Exception as e:
             logger.error(f"Error processing webhook: {e}")
@@ -618,17 +618,17 @@ class handler(BaseHTTPRequestHandler):
         finally:
             self.send_success_response()
     
-    async def _process_update_async(self, update: Update, update_id: int):
+    async def _process_update_async(self, update_dict: dict, update_id: int):
         """Async function to process update with proper cleanup"""
         try:
-            # Ensure initialization
-            await ensure_initialized()
+            app = await get_application()
+            
+            update = Update.de_json(update_dict, app.bot)
             
             # Process the update
-            await application.process_update(update)
+            await app.process_update(update)
             logger.info("Update processed successfully")
             
-            # Give time for any pending HTTP operations to complete
             await asyncio.sleep(0.5)
             
             # Schedule cleanup for later
@@ -654,4 +654,4 @@ class handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(b'MetaDAO Bot is running!')
 
-logger.info("Application built successfully")
+logger.info("Module loaded successfully")
