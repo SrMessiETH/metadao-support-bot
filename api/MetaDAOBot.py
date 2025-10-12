@@ -319,6 +319,17 @@ async def ensure_initialized():
         await application.initialize()
         _initialized = True
 
+try:
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    loop.run_until_complete(application.initialize())
+    loop.close()
+    _initialized = True
+    logger.info("Application pre-initialized successfully")
+except Exception as e:
+    logger.warning(f"Could not pre-initialize application: {e}")
+    _initialized = False
+
 class handler(BaseHTTPRequestHandler):
     def do_POST(self):
         """Handle POST requests from Telegram webhook"""
@@ -340,7 +351,8 @@ class handler(BaseHTTPRequestHandler):
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
             try:
-                loop.run_until_complete(ensure_initialized())
+                if not _initialized:
+                    loop.run_until_complete(ensure_initialized())
                 loop.run_until_complete(application.process_update(update))
                 logger.info("[v0] Update processed successfully")
             finally:
