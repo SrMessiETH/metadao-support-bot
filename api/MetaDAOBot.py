@@ -2,6 +2,7 @@ import json
 import logging
 from telegram.ext import Application, ConversationHandler, CommandHandler, MessageHandler, CallbackQueryHandler, filters, ContextTypes
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardRemove, BotCommand
+from telegram.request import HTTPXRequest
 import os
 from datetime import datetime
 import gspread
@@ -153,7 +154,7 @@ async def forward_to_support(update: Update, context: ContextTypes.DEFAULT_TYPE)
             f"New support request from {context.user_data.get('name')} ({username}):\n"
             f"Email: {context.user_data.get('email')}\n"
             f"Question: {context.user_data.get('question')}\n"
-            f"Category: {context.user_data.get('category')}\n"
+            f"Category: {context.user_data.get('category', 'General')}\n"
             f"User ID: {user.id}\n"
             f"Chat Type: {chat_type}"
         )
@@ -353,6 +354,7 @@ async def get_question(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
         return ConversationHandler.END
     question = update.message.text
     context.user_data['question'] = question
+    context.user_data['category'] = 'Support Request'
     name = context.user_data['name']
     email = context.user_data['email']
 
@@ -561,26 +563,16 @@ async def get_intellectual_property(update: Update, context: ContextTypes.DEFAUL
         context.user_data.clear()
         return ConversationHandler.END
     
-    # Log to Google Sheets
-    submission_data = {
-        'Project Name': context.user_data['project_name_short'],
-        'Project Description (Long)': context.user_data['project_desc_long'],
-        'Token Name': context.user_data['token_name'],
-        'Token Ticker': context.user_data['token_ticker'],
-        'Project Image URL': context.user_data['project_image'],
-        'Token Image URL': context.user_data['token_image'],
-        'Minimum Raise': context.user_data['min_raise'],
-        'Monthly Budget': context.user_data['monthly_budget'],
-        'Performance Package': context.user_data['performance_package'],
-        'Performance Unlock Time': context.user_data['performance_unlock_time'],
-        'Intellectual Property': context.user_data['intellectual_property']
-    }
+    # Prepare extra_data for logging
+    extra_data = {k: context.user_data.get(k, '') for k in required_fields}
     
+    # Log to Google Sheets
     log_request(
         context.user_data['project_name_short'],
         update.effective_user.username or str(update.effective_user.id),
-        json.dumps(submission_data, indent=2),
-        'Get Listed'
+        None,  # No question for get listed
+        'Get Listed',
+        extra_data=extra_data
     )
     
     await update.message.reply_text(
@@ -659,18 +651,23 @@ application.add_handler(MessageHandler(filters.Regex(r'^(CA|ca|Ca)$'), handle_ca
 application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, text_handler))
 application.add_handler(MessageHandler(filters.COMMAND, text_handler))
 
+_initialized = False
+
 async def ensure_initialized():
     """Ensure application is initialized before processing updates"""
-    await application.initialize()
-    await application.bot.initialize()
-    from telegram import BotCommand
-    commands = [
-        BotCommand("start", "Start the bot and show main menu"),
-        BotCommand("help", "Show help information"),
-        BotCommand("cancel", "Cancel current operation")
-    ]
-    await application.bot.set_my_commands(commands)
-    logger.info("Bot commands menu set successfully")
+    global _initialized
+    if not _initialized:
+        await application.initialize()
+        await application.bot.initialize()
+        from telegram import BotCommand
+        commands = [
+            BotCommand("start", "Start the bot and show main menu"),
+            BotCommand("help", "Show help information"),
+            BotCommand("cancel", "Cancel current operation")
+        ]
+        await application.bot.set_my_commands(commands)
+        logger.info("Bot commands menu set successfully")
+        _initialized = True
 
 _processing_updates = set()
 _update_cleanup_tasks = {}
@@ -694,6 +691,7 @@ class handler(BaseHTTPRequestHandler):
     def do_POST(self):
         """Handle POST requests from Telegram webhook"""
         update_id = None
+        new_request = None
         try:
             logger.info("[v0] Webhook POST request received")
             
@@ -716,14 +714,18 @@ class handler(BaseHTTPRequestHandler):
             
             logger.info(f"[v0] Processing update {update_id}")
             
-            # Create Update object and process
+            # Create Update object
             update = Update.de_json(update_dict, application.bot)
+            
+            # Recreate request client for this invocation to avoid loop issues
+            new_request = HTTPXRequest()
+            application.bot.request = new_request
             
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
             inner_loop_closed = False
             try:
-                # Ensure initialization on current loop
+                # Ensure initialization
                 loop.run_until_complete(ensure_initialized())
                 
                 # Process the update
@@ -745,6 +747,14 @@ class handler(BaseHTTPRequestHandler):
                 
                 inner_loop_closed = True
             finally:
+                # Close the request client
+                if new_request and hasattr(new_request, '_client') and new_request._client:
+                    try:
+                        loop.run_until_complete(new_request._client.aclose())
+                        logger.info("Request client closed successfully")
+                    except Exception as close_e:
+                        logger.warning(f"Failed to close request client: {close_e}")
+                
                 # Close the loop only after everything is done
                 if not inner_loop_closed:
                     logger.warning("Inner loop not closed properly, forcing close")
@@ -759,6 +769,8 @@ class handler(BaseHTTPRequestHandler):
             if update_id and update_id in _processing_updates:
                 _processing_updates.discard(update_id)
         finally:
+            if new_request:
+                application.bot.request = None  # Reset to avoid stale reference
             self.send_success_response()
 
     def do_GET(self):
@@ -768,3 +780,5 @@ class handler(BaseHTTPRequestHandler):
         self.send_header('Content-Type', 'text/plain')
         self.end_headers()
         self.wfile.write(b'MetaDAO Bot is running!')
+
+logger.info("Application built successfully")
