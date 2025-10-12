@@ -760,6 +760,9 @@ async def get_application():
         await _application.initialize()
         await _application.bot.initialize()
         
+        await _application.bot.delete_my_commands()
+        
+        # Set commands for private chats only (conversation commands)
         private_commands = [
             BotCommand("start", "Start the bot and show main menu"),
             BotCommand("help", "Show help information"),
@@ -767,6 +770,7 @@ async def get_application():
         ]
         await _application.bot.set_my_commands(private_commands, scope=BotCommandScopeAllPrivateChats())
         
+        # Set commands for group chats only (info commands)
         group_commands = [
             BotCommand("ca", "Get META contract address"),
             BotCommand("web", "Get MetaDAO website link"),
@@ -775,7 +779,7 @@ async def get_application():
         ]
         await _application.bot.set_my_commands(group_commands, scope=BotCommandScopeAllGroupChats())
         
-        logger.info("Bot commands configured: conversation commands for private chats, info commands for groups")
+        logger.info("Bot commands configured: conversation commands for private chats only, info commands for groups only")
         _initialized = True
     
     return _application
