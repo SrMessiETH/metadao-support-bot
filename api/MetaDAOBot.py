@@ -193,12 +193,9 @@ async def start_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         f'Hello {user.first_name}! Welcome to MetaDAO Support Bot.\n\n'
         f'For more information, check our docs: https://docs.metadao.fi/\n\n'
         'Please select a category from the menu below:',
-        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Show Main Menu", callback_data='main_menu')]]),
+        reply_markup=main_inline_keyboard(),
         disable_web_page_preview=True
     )
-    # Remove any reply keyboard
-    await update.message.reply_text(".", reply_markup=ReplyKeyboardRemove())
-    await context.bot.delete_message(chat_id=update.effective_chat.id, message_id=update.message.message_id + 1)
 
 # Help command handler
 async def help_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
