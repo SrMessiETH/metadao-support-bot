@@ -147,6 +147,9 @@ async def start_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Show Main Menu", callback_data='main_menu')]]),
         disable_web_page_preview=True
     )
+    # Remove any reply keyboard
+    await update.message.reply_text(".", reply_markup=ReplyKeyboardRemove())
+    await context.bot.delete_message(chat_id=update.effective_chat.id, message_id=update.message.message_id + 1)
 
 # Callback query handler
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -285,11 +288,17 @@ async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 
     ca_variants = ["ca"]
     if text in ca_variants:
-        await update.message.reply_text(META_CA)
+        # Remove any reply keyboard
+        await update.message.reply_text(META_CA, reply_markup=ReplyKeyboardRemove())
         return
 
+    # Remove any reply keyboard
     await update.message.reply_text(
         "Please use the inline menu to select an option.",
+        reply_markup=ReplyKeyboardRemove()
+    )
+    await update.message.reply_text(
+        "Main Menu:",
         reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Main Menu", callback_data='main_menu')]])
     )
 
