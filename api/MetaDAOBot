@@ -28,39 +28,39 @@ application.add_handler(conv_handler)
 application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, text_handler))
 application.add_handler(MessageHandler(filters.COMMAND, text_handler))  # Handle commands as text
 
-import asyncio
-asyncio.run(application.initialize())
-
 # Vercel serverless function handler for Telegram webhook
 from http.server import BaseHTTPRequestHandler
 import json
+import asyncio
+
+_initialized = False
+
+async def ensure_initialized():
+    """Ensure application is initialized before processing updates"""
+    global _initialized
+    if not _initialized:
+        await application.initialize()
+        _initialized = True
 
 class handler(BaseHTTPRequestHandler):
     def do_POST(self):
         """Handle POST requests from Telegram webhook"""
         try:
-            print("[v0] Received POST request to webhook")
-            
             # Read request body
             content_length = int(self.headers.get('Content-Length', 0))
             body = self.rfile.read(content_length)
             
-            print(f"[v0] Request body: {body.decode('utf-8')}")
-            
             # Parse JSON update from Telegram
             update_dict = json.loads(body.decode('utf-8'))
-            
-            print(f"[v0] Parsed update: {update_dict}")
             
             # Create Update object
             update = Update.de_json(update_dict, application.bot)
             
-            print(f"[v0] Processing update ID: {update.update_id}")
+            async def process():
+                await ensure_initialized()
+                await application.process_update(update)
             
-            # Process update synchronously using asyncio
-            asyncio.run(application.process_update(update))
-            
-            print("[v0] Update processed successfully")
+            asyncio.run(process())
             
             # Send success response
             self.send_response(200)
@@ -71,7 +71,7 @@ class handler(BaseHTTPRequestHandler):
             
         except Exception as e:
             # Log error and send error response
-            print(f"[v0] Error processing webhook: {e}")
+            print(f"Error processing webhook: {e}")
             import traceback
             traceback.print_exc()
             self.send_response(500)
