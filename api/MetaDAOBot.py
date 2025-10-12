@@ -418,19 +418,50 @@ async def get_listed_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -
 
 async def get_listed_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     query = update.callback_query
-    await query.answer()
+    logger.info(f"Confirming get_listed for user {query.from_user.id}, data: {query.data}")
+    try:
+        await query.answer()
+        logger.info("answer() succeeded in get_listed_confirm")
+    except Exception as e:
+        logger.error(f"answer() failed in get_listed_confirm: {e}")
+        import traceback
+        traceback.print_exc()
+        # Continue anyway, as answer is best-effort
     
     if query.data == 'get_listed_yes':
         context.user_data['get_listed_active'] = True
-        await query.edit_message_text(
-            "Great! Let's get started. Please provide your project name and a short description (1-2 sentences):"
-        )
+        try:
+            await query.edit_message_text(
+                "Great! Let's get started. Please provide your project name and a short description (1-2 sentences):"
+            )
+        except Exception as e:
+            logger.error(f"edit_message_text failed in get_listed_confirm yes: {e}")
+            traceback.print_exc()
+            try:
+                await context.bot.send_message(
+                    chat_id=query.message.chat_id,
+                    text="Great! Let's get started. Please provide your project name and a short description (1-2 sentences):"
+                )
+            except Exception as fallback_e:
+                logger.error(f"Fallback send_message failed: {fallback_e}")
         return PROJECT_NAME_SHORT
     else:
-        await query.edit_message_text(
-            "No problem! Returning to main menu.",
-            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Main Menu", callback_data='main_menu')]])
-        )
+        try:
+            await query.edit_message_text(
+                "No problem! Returning to main menu.",
+                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Main Menu", callback_data='main_menu')]])
+            )
+        except Exception as e:
+            logger.error(f"edit_message_text failed in get_listed_confirm no: {e}")
+            traceback.print_exc()
+            try:
+                await context.bot.send_message(
+                    chat_id=query.message.chat_id,
+                    text="No problem! Returning to main menu.",
+                    reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Main Menu", callback_data='main_menu')]])
+                )
+            except Exception as fallback_e:
+                logger.error(f"Fallback send_message failed: {fallback_e}")
         return ConversationHandler.END
 
 async def get_project_name_short(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -628,23 +659,18 @@ application.add_handler(MessageHandler(filters.Regex(r'^(CA|ca|Ca)$'), handle_ca
 application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, text_handler))
 application.add_handler(MessageHandler(filters.COMMAND, text_handler))
 
-_initialized = False
-
 async def ensure_initialized():
     """Ensure application is initialized before processing updates"""
-    global _initialized
-    if not _initialized:
-        await application.initialize()
-        await application.bot.initialize()
-        from telegram import BotCommand
-        commands = [
-            BotCommand("start", "Start the bot and show main menu"),
-            BotCommand("help", "Show help information"),
-            BotCommand("cancel", "Cancel current operation")
-        ]
-        await application.bot.set_my_commands(commands)
-        logger.info("Bot commands menu set successfully")
-        _initialized = True
+    await application.initialize()
+    await application.bot.initialize()
+    from telegram import BotCommand
+    commands = [
+        BotCommand("start", "Start the bot and show main menu"),
+        BotCommand("help", "Show help information"),
+        BotCommand("cancel", "Cancel current operation")
+    ]
+    await application.bot.set_my_commands(commands)
+    logger.info("Bot commands menu set successfully")
 
 _processing_updates = set()
 _update_cleanup_tasks = {}
@@ -697,9 +723,8 @@ class handler(BaseHTTPRequestHandler):
             asyncio.set_event_loop(loop)
             inner_loop_closed = False
             try:
-                # Ensure initialization
-                if not _initialized:
-                    loop.run_until_complete(ensure_initialized())
+                # Ensure initialization on current loop
+                loop.run_until_complete(ensure_initialized())
                 
                 # Process the update
                 loop.run_until_complete(application.process_update(update))
@@ -743,28 +768,3 @@ class handler(BaseHTTPRequestHandler):
         self.send_header('Content-Type', 'text/plain')
         self.end_headers()
         self.wfile.write(b'MetaDAO Bot is running!')
-
-try:
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    loop.run_until_complete(application.initialize())
-    loop.run_until_complete(application.bot.initialize())
-    from telegram import BotCommand
-    commands = [
-        BotCommand("start", "Start the bot and show main menu"),
-        BotCommand("help", "Show help information"),
-        BotCommand("cancel", "Cancel current operation")
-    ]
-    loop.run_until_complete(application.bot.set_my_commands(commands))
-    logger.info("Bot commands menu registered successfully")
-    try:
-        loop.run_until_complete(application.bot.get_me())
-        logger.info("Bot HTTP client warmed up successfully")
-    except Exception as e:
-        logger.warning(f"Could not warm up bot HTTP client: {e}")
-    loop.close()
-    _initialized = True
-    logger.info("Application and bot pre-initialized successfully")
-except Exception as e:
-    logger.warning(f"Could not pre-initialize application: {e}")
-    _initialized = False
