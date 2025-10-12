@@ -228,16 +228,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         return
     query = update.callback_query
     
-    logger.info(f"[v0] Button handler called for callback_data: {query.data}")
-    logger.info(f"[v0] About to call query.answer()")
-    
-    try:
-        await query.answer()
-        logger.info(f"[v0] query.answer() completed successfully")
-    except Exception as e:
-        logger.error(f"[v0] query.answer() failed: {e}")
-        import traceback
-        traceback.print_exc()
+    await query.answer()
     
     data = query.data
     chat_id = query.message.chat_id
@@ -299,39 +290,8 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 # Support start handler
 async def support_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     query = update.callback_query
-    logger.info(f"Starting support request for user {query.from_user.id}, data: {query.data}")
-    try:
-        await query.answer()
-        logger.info("answer() succeeded in support_start")
-    except Exception as e:
-        logger.error(f"answer() failed in support_start: {e}")
-        import traceback
-        traceback.print_exc()
-        # Still try to proceed or send a fallback message
-        try:
-            await context.bot.send_message(
-                chat_id=query.message.chat_id,
-                text="Starting support request..."
-            )
-        except Exception as fallback_e:
-            logger.error(f"Fallback send_message failed: {fallback_e}")
-        return ConversationHandler.END  # End if critical failure
-    
-    try:
-        await query.edit_message_text("To submit a support request, please provide your full name:")
-        logger.info("edit_message_text succeeded in support_start")
-    except Exception as e:
-        logger.error(f"edit_message_text failed in support_start: {e}")
-        traceback.print_exc()
-        # Fallback: Send new message
-        try:
-            await context.bot.send_message(
-                chat_id=query.message.chat_id,
-                text="To submit a support request, please provide your full name:"
-            )
-        except Exception as fallback_e:
-            logger.error(f"Fallback send_message failed: {fallback_e}")
-        # Continue to next state anyway
+    await query.answer()
+    await query.edit_message_text("To submit a support request, please provide your full name:")
     context.user_data['support_active'] = True
     return NAME
 
@@ -374,96 +334,34 @@ async def get_question(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
 # Get listed conversation handlers
 async def get_listed_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     query = update.callback_query
-    logger.info(f"Starting get_listed for user {query.from_user.id}, data: {query.data}")
-    try:
-        await query.answer()
-        logger.info("answer() succeeded in get_listed_start")
-    except Exception as e:
-        logger.error(f"answer() failed in get_listed_start: {e}")
-        import traceback
-        traceback.print_exc()
-        # Still try to proceed or send a fallback message
-        try:
-            await context.bot.send_message(
-                chat_id=query.message.chat_id,
-                text="Starting get listed process..."
-            )
-        except Exception as fallback_e:
-            logger.error(f"Fallback send_message failed: {fallback_e}")
-        return ConversationHandler.END  # End if critical failure
+    await query.answer()
     
     keyboard = [
         [InlineKeyboardButton("Yes, I want to get listed", callback_data='get_listed_yes')],
         [InlineKeyboardButton("Back to Main Menu", callback_data='main_menu')]
     ]
     
-    try:
-        await query.edit_message_text(
-            "Would you like to proceed with getting your project listed on MetaDAO?",
-            reply_markup=InlineKeyboardMarkup(keyboard)
-        )
-        logger.info("edit_message_text succeeded in get_listed_start")
-    except Exception as e:
-        logger.error(f"edit_message_text failed in get_listed_start: {e}")
-        traceback.print_exc()
-        # Fallback: Send new message
-        try:
-            await context.bot.send_message(
-                chat_id=query.message.chat_id,
-                text="Would you like to proceed with getting your project listed on MetaDAO?",
-                reply_markup=InlineKeyboardMarkup(keyboard)
-            )
-        except Exception as fallback_e:
-            logger.error(f"Fallback send_message failed: {fallback_e}")
-        # Continue to next state anyway
+    await query.edit_message_text(
+        "Would you like to proceed with getting your project listed on MetaDAO?",
+        reply_markup=InlineKeyboardMarkup(keyboard)
+    )
     return GET_LISTED_CONFIRM
 
 async def get_listed_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     query = update.callback_query
-    logger.info(f"Confirming get_listed for user {query.from_user.id}, data: {query.data}")
-    try:
-        await query.answer()
-        logger.info("answer() succeeded in get_listed_confirm")
-    except Exception as e:
-        logger.error(f"answer() failed in get_listed_confirm: {e}")
-        import traceback
-        traceback.print_exc()
-        # Continue anyway, as answer is best-effort
+    await query.answer()
     
     if query.data == 'get_listed_yes':
         context.user_data['get_listed_active'] = True
-        try:
-            await query.edit_message_text(
-                "Great! Let's get started. Please provide your project name and a short description (1-2 sentences):"
-            )
-        except Exception as e:
-            logger.error(f"edit_message_text failed in get_listed_confirm yes: {e}")
-            traceback.print_exc()
-            try:
-                await context.bot.send_message(
-                    chat_id=query.message.chat_id,
-                    text="Great! Let's get started. Please provide your project name and a short description (1-2 sentences):"
-                )
-            except Exception as fallback_e:
-                logger.error(f"Fallback send_message failed: {fallback_e}")
+        await query.edit_message_text(
+            "Great! Let's get started. Please provide your project name and a short description (1-2 sentences):"
+        )
         return PROJECT_NAME_SHORT
     else:
-        try:
-            await query.edit_message_text(
-                "No problem! Returning to main menu.",
-                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Main Menu", callback_data='main_menu')]])
-            )
-        except Exception as e:
-            logger.error(f"edit_message_text failed in get_listed_confirm no: {e}")
-            traceback.print_exc()
-            try:
-                await context.bot.send_message(
-                    chat_id=query.message.chat_id,
-                    text="No problem! Returning to main menu.",
-                    reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Main Menu", callback_data='main_menu')]])
-                )
-            except Exception as fallback_e:
-                logger.error(f"Fallback send_message failed: {fallback_e}")
+        await query.edit_message_text(
+            "No problem! Returning to main menu.",
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Main Menu", callback_data='main_menu')]])
+        )
         return ConversationHandler.END
 
 async def get_project_name_short(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -659,7 +557,6 @@ async def ensure_initialized():
     if not _initialized:
         await application.initialize()
         await application.bot.initialize()
-        from telegram import BotCommand
         commands = [
             BotCommand("start", "Start the bot and show main menu"),
             BotCommand("help", "Show help information"),
@@ -688,114 +585,74 @@ class handler(BaseHTTPRequestHandler):
         response = json.dumps({'ok': True})
         self.wfile.write(response.encode('utf-8'))
 
-def do_POST(self):
-    """Handle POST requests from Telegram webhook"""
-    update_id = None
-    new_request = None
-    try:
-        logger.info("[v0] Webhook POST request received")
-        
-        # Read request body
-        content_length = int(self.headers.get('Content-Length', 0))
-        body = self.rfile.read(content_length)
-        logger.info(f"[v0] Request body length: {content_length}")
-        
-        # Parse JSON update from Telegram
-        update_dict = json.loads(body.decode('utf-8'))
-        logger.info(f"[v0] Parsed update: {update_dict}")
-        
-        update_id = update_dict.get('update_id')
-        if update_id and update_id in _processing_updates:
-            logger.warning(f"Duplicate update {update_id} detected, skipping")
-            return  # Will hit finally
-        
-        if update_id:
-            _processing_updates.add(update_id)
-        
-        logger.info(f"[v0] Processing update {update_id}")
-        
-        # Create Update object
-        update = Update.de_json(update_dict, application.bot)
-        
-        # Recreate request client for this invocation to avoid loop issues
-        new_request = HTTPXRequest()
-        # Fix: Set the internal _request instead of the read-only property
-        if not hasattr(application.bot, '_request') or application.bot._request is None:
-            application.bot._request = new_request
-        else:
-            # If already set, close the old one first (if possible)
-            try:
-                if application.bot._request._client:
-                    # Note: This assumes async context; we'll handle full close later
-                    pass
-            except:
-                pass
-            application.bot._request = new_request
-        
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        inner_loop_closed = False
+    def do_POST(self):
+        """Handle POST requests from Telegram webhook"""
+        update_id = None
         try:
-            # Ensure initialization
-            loop.run_until_complete(ensure_initialized())
+            logger.info("Webhook POST request received")
             
-            # Process the update
-            loop.run_until_complete(application.process_update(update))
-            logger.info("[v0] Update processed successfully")
+            # Read request body
+            content_length = int(self.headers.get('Content-Length', 0))
+            body = self.rfile.read(content_length)
             
-            # Wait for ALL pending tasks to complete (including query.answer())
-            pending = asyncio.all_tasks(loop)
-            if pending:
-                logger.info(f"[v0] Waiting for {len(pending)} pending tasks to complete")
-                loop.run_until_complete(asyncio.gather(*pending, return_exceptions=True))
-                logger.info("[v0] All pending tasks completed")
+            # Parse JSON update from Telegram
+            update_dict = json.loads(body.decode('utf-8'))
             
-            # Schedule cleanup for later (in a separate loop)
+            update_id = update_dict.get('update_id')
+            if update_id and update_id in _processing_updates:
+                logger.warning(f"Duplicate update {update_id} detected, skipping")
+                return
+            
             if update_id:
-                cleanup_loop = asyncio.new_event_loop()
-                cleanup_task = cleanup_loop.create_task(_cleanup_update_id(update_id))
-                _update_cleanup_tasks[update_id] = (cleanup_loop, cleanup_task)
+                _processing_updates.add(update_id)
             
-            inner_loop_closed = True
-        finally:
-            # Close the request client
-            if new_request and hasattr(new_request, '_client') and new_request._client:
-                try:
-                    loop.run_until_complete(new_request._client.aclose())
-                    logger.info("Request client closed successfully")
-                except Exception as close_e:
-                    logger.warning(f"Failed to close request client: {close_e}")
+            logger.info(f"Processing update {update_id}")
             
-            # Close the loop only after everything is done
-            if not inner_loop_closed:
-                logger.warning("Inner loop not closed properly, forcing close")
-            loop.close()
+            # Create Update object
+            update = Update.de_json(update_dict, application.bot)
             
-    except Exception as e:
-        logger.error(f"[v0] Error processing webhook: {e}")
-        import traceback
-        traceback.print_exc()
-        
-        # Remove from processing set on error
-        if update_id and update_id in _processing_updates:
-            _processing_updates.discard(update_id)
-    finally:
-        if new_request:
-            # Reset to original/default if needed, but usually not necessary
-            pass
-        # Clean up any lingering task refs
-        if update_id in _update_cleanup_tasks:
-            cleanup_loop, cleanup_task = _update_cleanup_tasks.pop(update_id)
+            # Create a new event loop for this invocation
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
             try:
-                cleanup_loop.run_until_complete(cleanup_task)
-            except:
-                pass
-            cleanup_loop.close()
-        self.send_success_response()
+                # Ensure initialization
+                loop.run_until_complete(ensure_initialized())
+                
+                # Process the update
+                loop.run_until_complete(application.process_update(update))
+                logger.info("Update processed successfully")
+                
+                # Wait for ALL pending tasks to complete
+                pending = asyncio.all_tasks(loop)
+                if pending:
+                    logger.info(f"Waiting for {len(pending)} pending tasks to complete")
+                    loop.run_until_complete(asyncio.gather(*pending, return_exceptions=True))
+                    logger.info("All pending tasks completed")
+                
+                # Schedule cleanup for later
+                if update_id:
+                    cleanup_loop = asyncio.new_event_loop()
+                    cleanup_task = cleanup_loop.create_task(_cleanup_update_id(update_id))
+                    _update_cleanup_tasks[update_id] = (cleanup_loop, cleanup_task)
+                
+            finally:
+                # Close the loop after everything is done
+                loop.close()
+                
+        except Exception as e:
+            logger.error(f"Error processing webhook: {e}")
+            import traceback
+            traceback.print_exc()
+            
+            # Remove from processing set on error
+            if update_id and update_id in _processing_updates:
+                _processing_updates.discard(update_id)
+        finally:
+            self.send_success_response()
 
     def do_GET(self):
         """Handle GET requests for health check"""
-        logger.info("[v0] Health check GET request received")
+        logger.info("Health check GET request received")
         self.send_response(200)
         self.send_header('Content-Type', 'text/plain')
         self.end_headers()
