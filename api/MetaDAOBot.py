@@ -154,7 +154,18 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         await update.callback_query.answer()
         return
     query = update.callback_query
-    await query.answer()
+    
+    logger.info(f"[v0] Button handler called for callback_data: {query.data}")
+    logger.info(f"[v0] About to call query.answer()")
+    
+    try:
+        await query.answer()
+        logger.info(f"[v0] query.answer() completed successfully")
+    except Exception as e:
+        logger.error(f"[v0] query.answer() failed: {e}")
+        import traceback
+        traceback.print_exc()
+    
     data = query.data
     chat_id = query.message.chat_id
 
@@ -325,6 +336,11 @@ try:
     asyncio.set_event_loop(loop)
     loop.run_until_complete(application.initialize())
     loop.run_until_complete(application.bot.initialize())
+    try:
+        loop.run_until_complete(application.bot.get_me())
+        logger.info("Bot HTTP client warmed up successfully")
+    except Exception as e:
+        logger.warning(f"Could not warm up bot HTTP client: {e}")
     loop.close()
     _initialized = True
     logger.info("Application and bot pre-initialized successfully")
