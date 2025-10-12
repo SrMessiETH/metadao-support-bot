@@ -18,7 +18,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # States for support conversation
-NAME, EMAIL, QUESTION = range(3)
+SUPPORT_CATEGORY, NAME, EMAIL, QUESTION = range(4)
 
 # States for get listed conversation
 GET_LISTED_CONFIRM, PROJECT_NAME_SHORT, PROJECT_DESC_LONG, TOKEN_NAME, TOKEN_TICKER, PROJECT_IMAGE, TOKEN_IMAGE, MIN_RAISE, MONTHLY_BUDGET, PERFORMANCE_PACKAGE, PERFORMANCE_UNLOCK_TIME, INTELLECTUAL_PROPERTY = range(12, 24)
@@ -120,7 +120,7 @@ def get_sheets_client(sheet_name='Support Requests'):
             
             if sheet_name == 'Support Requests':
                 # Horizontal layout with headers
-                headers = ['Timestamp', 'Name', 'Email', 'Question', 'Category']
+                headers = ['Timestamp', 'Name', 'Email', 'Question', 'Category', 'Subcategory']
                 sheet.append_row(headers)
                 logger.info(f"Created sheet '{sheet_name}' with horizontal layout")
             else:
@@ -133,7 +133,7 @@ def get_sheets_client(sheet_name='Support Requests'):
         return None
 
 # Function to log request to Google Sheets
-def log_request(name, email, question, category, extra_data=None):
+def log_request(name, email, question, category, subcategory=None, extra_data=None):
     sheet_name = 'Get Listed' if category == 'Get Listed' else 'Support Requests'
     sheet = get_sheets_client(sheet_name)
     
@@ -142,9 +142,9 @@ def log_request(name, email, question, category, extra_data=None):
         
         if category == 'Support Request':
             # Horizontal layout - append one row
-            row = [timestamp, name, email, question, category]
+            row = [timestamp, name, email, question, category, subcategory or '']
             sheet.append_row(row)
-            logger.info(f"Request logged horizontally to '{sheet_name}' sheet: {name}, {email}, {category}")
+            logger.info(f"Request logged horizontally to '{sheet_name}' sheet: {name}, {email}, {category}, {subcategory}")
         else:
             # Vertical layout for Get Listed - append to next available column
             # Get all values to find the next empty column
@@ -206,6 +206,8 @@ async def forward_to_support(update: Update, context: ContextTypes.DEFAULT_TYPE)
             f"New support request from {context.user_data.get('name')} ({username}):\n"
             f"Email: {context.user_data.get('email')}\n"
             f"Question: {context.user_data.get('question')}\n"
+            # Included subcategory in the forwarded message
+            f"Subcategory: {context.user_data.get('subcategory', 'N/A')}\n"
             f"Category: {context.user_data.get('category', 'General')}\n"
             f"User ID: {user.id}\n"
             f"Chat Type: {chat_type}"
@@ -228,6 +230,7 @@ async def start_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         "📖 *Quick Links:*\n"
         "• Documentation: [docs.metadao.fi](https://docs.metadao.fi/)\n"
         "• Website: [metadao.fi](https://metadao.fi)\n\n"
+        "• Ca: METAwkXcqyXKy1AtsSgJ8JiUHwGCafnZL38n3vYmeta\n\n"
         "👇 *Select an option below to get started:*"
     )
     await update.message.reply_text(
@@ -351,13 +354,66 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 async def support_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     query = update.callback_query
     await query.answer()
+    
+    keyboard = [
+        [InlineKeyboardButton("💰 Refunds", callback_data='support_refunds')],
+        [InlineKeyboardButton("🐛 Bugs", callback_data='support_bugs')],
+        [InlineKeyboardButton("💡 Suggestions", callback_data='support_suggestions')],
+        [InlineKeyboardButton("🔧 Technical Issues", callback_data='support_technical')],
+        [InlineKeyboardButton("👤 Account Issues", callback_data='support_account')],
+        [InlineKeyboardButton("❓ General Inquiry", callback_data='support_general')],
+        [InlineKeyboardButton("⬅️ Back to Main Menu", callback_data='main_menu')]
+    ]
+    
     await query.edit_message_text(
         "💬 *Support Request*\n\n"
-        "I'll help you submit a support request to our team.\n\n"
+        "Please select the category that best describes your request:\n\n"
+        "💰 *Refunds* - Payment and refund inquiries\n"
+        "🐛 *Bugs* - Report technical bugs or errors\n"
+        "💡 *Suggestions* - Feature requests and improvements\n"
+        "🔧 *Technical Issues* - General technical problems\n"
+        "👤 *Account Issues* - Account-related concerns\n"
+        "❓ *General Inquiry* - Other questions",
+        parse_mode='Markdown',
+        reply_markup=InlineKeyboardMarkup(keyboard)
+    )
+    context.user_data['support_active'] = True
+    return SUPPORT_CATEGORY
+
+async def support_category_selected(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    query = update.callback_query
+    await query.answer()
+    
+    # Map callback data to subcategory names
+    subcategory_map = {
+        'support_refunds': 'Refunds',
+        'support_bugs': 'Bugs',
+        'support_suggestions': 'Suggestions',
+        'support_technical': 'Technical Issues',
+        'support_account': 'Account Issues',
+        'support_general': 'General Inquiry'
+    }
+    
+    subcategory = subcategory_map.get(query.data, 'General Inquiry')
+    context.user_data['subcategory'] = subcategory
+    
+    # Get emoji for the selected category
+    emoji_map = {
+        'Refunds': '💰',
+        'Bugs': '🐛',
+        'Suggestions': '💡',
+        'Technical Issues': '🔧',
+        'Account Issues': '👤',
+        'General Inquiry': '❓'
+    }
+    emoji = emoji_map.get(subcategory, '💬')
+    
+    await query.edit_message_text(
+        f"{emoji} *Support Request: {subcategory}*\n\n"
+        "Great! I'll help you submit your request to our team.\n\n"
         "📝 *Step 1 of 3:* Please provide your full name:",
         parse_mode='Markdown'
     )
-    context.user_data['support_active'] = True
     return NAME
 
 async def get_name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -375,9 +431,12 @@ async def get_email(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     if not context.user_data.get('support_active'):
         return ConversationHandler.END
     context.user_data['email'] = update.message.text
+    
+    subcategory = context.user_data.get('subcategory', 'General Inquiry')
+    
     await update.message.reply_text(
         "✅ Perfect!\n\n"
-        "📝 *Step 3 of 3:* Please describe your issue, question, or bug in detail:",
+        f"📝 *Step 3 of 3:* Please describe your *{subcategory.lower()}* in detail:",
         parse_mode='Markdown'
     )
     return QUESTION
@@ -390,8 +449,9 @@ async def get_question(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
     context.user_data['category'] = 'Support Request'
     name = context.user_data['name']
     email = context.user_data['email']
+    subcategory = context.user_data.get('subcategory', 'General Inquiry')
 
-    log_request(name, email, question, 'Support Request')
+    log_request(name, email, question, 'Support Request', subcategory=subcategory)
     await forward_to_support(update, context)
 
     response = (
@@ -749,6 +809,7 @@ async def get_application():
         conv_handler = ConversationHandler(
             entry_points=[CallbackQueryHandler(support_start, pattern='^support_request$')],
             states={
+                SUPPORT_CATEGORY: [CallbackQueryHandler(support_category_selected, pattern='^support_')],
                 NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_name)],
                 EMAIL: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_email)],
                 QUESTION: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_question)],
