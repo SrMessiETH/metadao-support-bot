@@ -234,20 +234,16 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     chat_id = query.message.chat_id
 
     if data == 'main_menu':
-        await context.bot.send_message(
-            chat_id=chat_id,
+        await query.edit_message_text(
             text="Main Menu:",
-            reply_markup=main_inline_keyboard(),
-            disable_web_page_preview=True
+            reply_markup=main_inline_keyboard()
         )
         return
 
     if data == 'proposals':
-        await context.bot.send_message(
-            chat_id=chat_id,
+        await query.edit_message_text(
             text="Proposals Submenu:",
-            reply_markup=proposals_inline_keyboard(),
-            disable_web_page_preview=True
+            reply_markup=proposals_inline_keyboard()
         )
         return
 
@@ -260,8 +256,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     if data in sub_map:
         text_name = sub_map[data]
         link = RESOURCE_LINKS[data]
-        await context.bot.send_message(
-            chat_id=chat_id,
+        await query.edit_message_text(
             text=f"Here is the information for {text_name}:\n{link}",
             reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Back to Main Menu", callback_data='main_menu')]]),
             disable_web_page_preview=True
@@ -279,8 +274,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     if data in category_map:
         text_name = category_map[data]
         link = RESOURCE_LINKS[data]
-        await context.bot.send_message(
-            chat_id=chat_id,
+        await query.edit_message_text(
             text=f"Here is the resource for {text_name}:\n{link}",
             reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Back to Main Menu", callback_data='main_menu')]]),
             disable_web_page_preview=True
