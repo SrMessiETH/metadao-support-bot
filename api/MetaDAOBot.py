@@ -618,16 +618,18 @@ class handler(BaseHTTPRequestHandler):
                 # Ensure initialization
                 loop.run_until_complete(ensure_initialized())
                 
-                # Process the update
                 loop.run_until_complete(application.process_update(update))
                 logger.info("Update processed successfully")
                 
-                # Wait for ALL pending tasks to complete
-                pending = asyncio.all_tasks(loop)
-                if pending:
-                    logger.info(f"Waiting for {len(pending)} pending tasks to complete")
-                    loop.run_until_complete(asyncio.gather(*pending, return_exceptions=True))
-                    logger.info("All pending tasks completed")
+                for attempt in range(3):
+                    pending = asyncio.all_tasks(loop)
+                    if pending:
+                        logger.info(f"Attempt {attempt + 1}: Waiting for {len(pending)} pending tasks")
+                        loop.run_until_complete(asyncio.gather(*pending, return_exceptions=True))
+                    # Small delay to allow any final operations to complete
+                    loop.run_until_complete(asyncio.sleep(0.1))
+                
+                logger.info("All pending tasks completed")
                 
                 # Schedule cleanup for later
                 if update_id:
@@ -636,8 +638,15 @@ class handler(BaseHTTPRequestHandler):
                     _update_cleanup_tasks[update_id] = (cleanup_loop, cleanup_task)
                 
             finally:
-                # Close the loop after everything is done
-                loop.close()
+                try:
+                    # Cancel any remaining tasks
+                    pending = asyncio.all_tasks(loop)
+                    for task in pending:
+                        task.cancel()
+                    if pending:
+                        loop.run_until_complete(asyncio.gather(*pending, return_exceptions=True))
+                finally:
+                    loop.close()
                 
         except Exception as e:
             logger.error(f"Error processing webhook: {e}")
