@@ -337,12 +337,19 @@ class handler(BaseHTTPRequestHandler):
             # Create Update object and process
             update = Update.de_json(update_dict, application.bot)
             
-            async def process():
-                await ensure_initialized()
-                await application.process_update(update)
-            
-            asyncio.run(process())
-            logger.info("[v0] Update processed successfully")
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            try:
+                loop.run_until_complete(ensure_initialized())
+                loop.run_until_complete(application.process_update(update))
+                logger.info("[v0] Update processed successfully")
+            finally:
+                # Give pending tasks time to complete before closing
+                pending = asyncio.all_tasks(loop)
+                for task in pending:
+                    task.cancel()
+                loop.run_until_complete(asyncio.gather(*pending, return_exceptions=True))
+                loop.close()
             
             # Send success response
             self.send_response(200)
