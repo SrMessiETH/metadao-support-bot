@@ -81,23 +81,23 @@ META_CA = 'METAwkXcqyXKy1AtsSgJ8JiUHwGCafnZL38n3vYmeta'
 
 def main_inline_keyboard():
     keyboard = [
-        [InlineKeyboardButton("Get Listed", callback_data='get_listed')],
-        [InlineKeyboardButton("ICOs", callback_data='icos')],
-        [InlineKeyboardButton("How Launches Work", callback_data='how_launches_work')],
-        [InlineKeyboardButton("Introduction to Futarchy", callback_data='futarchy_intro')],
-        [InlineKeyboardButton("Proposals", callback_data='proposals')],
-        [InlineKeyboardButton("For Entrepreneurs", callback_data='entrepreneurs')],
-        [InlineKeyboardButton("For Investors", callback_data='investors')],
-        [InlineKeyboardButton("Support Request", callback_data='support_request')]
+        [InlineKeyboardButton("🚀 Get Listed", callback_data='get_listed')],
+        [InlineKeyboardButton("📅 ICOs & Calendar", callback_data='icos')],
+        [InlineKeyboardButton("📚 How Launches Work", callback_data='how_launches_work')],
+        [InlineKeyboardButton("🎯 Introduction to Futarchy", callback_data='futarchy_intro')],
+        [InlineKeyboardButton("📊 Proposals", callback_data='proposals')],
+        [InlineKeyboardButton("💼 For Entrepreneurs", callback_data='entrepreneurs')],
+        [InlineKeyboardButton("💰 For Investors", callback_data='investors')],
+        [InlineKeyboardButton("💬 Support Request", callback_data='support_request')]
     ]
     return InlineKeyboardMarkup(keyboard)
 
 def proposals_inline_keyboard():
     keyboard = [
-        [InlineKeyboardButton("Creating Proposals", callback_data='proposals_create')],
-        [InlineKeyboardButton("Trading Proposals", callback_data='proposals_trade')],
-        [InlineKeyboardButton("Finalizing Proposals", callback_data='proposals_finalize')],
-        [InlineKeyboardButton("Back to Main Menu", callback_data='main_menu')]
+        [InlineKeyboardButton("✍️ Creating Proposals", callback_data='proposals_create')],
+        [InlineKeyboardButton("📈 Trading Proposals", callback_data='proposals_trade')],
+        [InlineKeyboardButton("✅ Finalizing Proposals", callback_data='proposals_finalize')],
+        [InlineKeyboardButton("⬅️ Back to Main Menu", callback_data='main_menu')]
     ]
     return InlineKeyboardMarkup(keyboard)
 
@@ -189,10 +189,23 @@ async def start_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     if update.effective_chat.type != 'private':
         return
     user = update.effective_user
+    welcome_text = (
+        f"👋 *Welcome to MetaDAO, {user.first_name}!*\n\n"
+        "I'm your MetaDAO assistant, here to help you navigate our platform.\n\n"
+        "*What I can help you with:*\n"
+        "🚀 Get your project listed on MetaDAO\n"
+        "📅 View upcoming ICOs and calendar\n"
+        "📚 Learn about our launch process\n"
+        "🎯 Understand futarchy governance\n"
+        "💬 Submit support requests\n\n"
+        "📖 *Quick Links:*\n"
+        "• Documentation: [docs.metadao.fi](https://docs.metadao.fi/)\n"
+        "• Website: [metadao.fi](https://metadao.fi)\n\n"
+        "👇 *Select an option below to get started:*"
+    )
     await update.message.reply_text(
-        f'Hello {user.first_name}! Welcome to MetaDAO Support Bot.\n\n'
-        f'For more information, check our docs: https://docs.metadao.fi/\n\n'
-        'Please select a category from the menu below:',
+        welcome_text,
+        parse_mode='Markdown',
         reply_markup=main_inline_keyboard(),
         disable_web_page_preview=True
     )
@@ -235,14 +248,15 @@ async def cancel_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     if context.user_data.get('support_active'):
         context.user_data.clear()
         await update.message.reply_text(
-            "Support request cancelled.",
-            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Main Menu", callback_data='main_menu')]])
+            "❌ *Operation Cancelled*\n\nYour support request has been cancelled. No worries, you can start again anytime!",
+            parse_mode='Markdown',
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🏠 Main Menu", callback_data='main_menu')]])
         )
         return ConversationHandler.END
     else:
         await update.message.reply_text(
-            "No active operation to cancel.",
-            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Main Menu", callback_data='main_menu')]])
+            "ℹ️ No active operation to cancel.",
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🏠 Main Menu", callback_data='main_menu')]])
         )
         return ConversationHandler.END
 
@@ -260,48 +274,52 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
     if data == 'main_menu':
         await query.edit_message_text(
-            text="Main Menu:",
+            text="🏠 *Main Menu*\n\nSelect an option below:",
+            parse_mode='Markdown',
             reply_markup=main_inline_keyboard()
         )
         return
 
     if data == 'proposals':
         await query.edit_message_text(
-            text="Proposals Submenu:",
+            text="📊 *Proposals*\n\nLearn about creating, trading, and finalizing proposals:",
+            parse_mode='Markdown',
             reply_markup=proposals_inline_keyboard()
         )
         return
 
     # Handle sub proposals
     sub_map = {
-        'proposals_create': 'Creating Proposals',
-        'proposals_trade': 'Trading Proposals',
-        'proposals_finalize': 'Finalizing Proposals',
+        'proposals_create': ('✍️ Creating Proposals', 'Learn how to create and submit proposals'),
+        'proposals_trade': ('📈 Trading Proposals', 'Discover how to trade on proposal markets'),
+        'proposals_finalize': ('✅ Finalizing Proposals', 'Understand the finalization process'),
     }
     if data in sub_map:
-        text_name = sub_map[data]
+        title, description = sub_map[data]
         link = RESOURCE_LINKS[data]
         await query.edit_message_text(
-            text=f"Here is the information for {text_name}:\n{link}",
-            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Back to Main Menu", callback_data='main_menu')]]),
+            text=f"*{title}*\n\n{description}\n\n🔗 [View Documentation]({link})",
+            parse_mode='Markdown',
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("⬅️ Back to Main Menu", callback_data='main_menu')]]),
             disable_web_page_preview=True
         )
         return
 
     # Handle main categories (excluding get_listed and support_request which are conversations)
     category_map = {
-        'icos': 'ICOs',
-        'how_launches_work': 'How Launches Work',
-        'futarchy_intro': 'Introduction to Futarchy',
-        'entrepreneurs': 'For Entrepreneurs',
-        'investors': 'For Investors',
+        'icos': ('📅 ICOs & Calendar', 'View all upcoming and active ICOs'),
+        'how_launches_work': ('📚 How Launches Work', 'Learn about the MetaDAO launch process'),
+        'futarchy_intro': ('🎯 Introduction to Futarchy', 'Understand futarchy governance'),
+        'entrepreneurs': ('💼 For Entrepreneurs', 'Benefits and resources for project founders'),
+        'investors': ('💰 For Investors', 'Investment opportunities and benefits'),
     }
     if data in category_map:
-        text_name = category_map[data]
+        title, description = category_map[data]
         link = RESOURCE_LINKS[data]
         await query.edit_message_text(
-            text=f"Here is the resource for {text_name}:\n{link}",
-            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Back to Main Menu", callback_data='main_menu')]]),
+            text=f"*{title}*\n\n{description}\n\n🔗 [Learn More]({link})",
+            parse_mode='Markdown',
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("⬅️ Back to Main Menu", callback_data='main_menu')]]),
             disable_web_page_preview=True
         )
         return
@@ -310,7 +328,12 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 async def support_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     query = update.callback_query
     await query.answer()
-    await query.edit_message_text("To submit a support request, please provide your full name:")
+    await query.edit_message_text(
+        "💬 *Support Request*\n\n"
+        "I'll help you submit a support request to our team.\n\n"
+        "📝 *Step 1 of 3:* Please provide your full name:",
+        parse_mode='Markdown'
+    )
     context.user_data['support_active'] = True
     return NAME
 
@@ -318,14 +341,22 @@ async def get_name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     if not context.user_data.get('support_active'):
         return ConversationHandler.END
     context.user_data['name'] = update.message.text
-    await update.message.reply_text("Thank you! Now, please provide your email address so we can contact you if needed.")
+    await update.message.reply_text(
+        f"✅ Got it, *{update.message.text}*!\n\n"
+        "📧 *Step 2 of 3:* Please provide your email address so we can get back to you:",
+        parse_mode='Markdown'
+    )
     return EMAIL
 
 async def get_email(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     if not context.user_data.get('support_active'):
         return ConversationHandler.END
     context.user_data['email'] = update.message.text
-    await update.message.reply_text("Now, please describe your issue, question, or bug:")
+    await update.message.reply_text(
+        "✅ Perfect!\n\n"
+        "📝 *Step 3 of 3:* Please describe your issue, question, or bug in detail:",
+        parse_mode='Markdown'
+    )
     return QUESTION
 
 async def get_question(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -340,11 +371,19 @@ async def get_question(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
     log_request(name, email, question, 'Support Request')
     await forward_to_support(update, context)
 
-    response = "Thank you for your submission! Our support team will review it and get back to you via email soon."
+    response = (
+        "✅ *Request Submitted Successfully!*\n\n"
+        "Thank you for reaching out! Our support team has received your request and will review it shortly.\n\n"
+        "📧 We'll get back to you via email at:\n"
+        f"`{email}`\n\n"
+        "⏱️ *Expected response time:* 24-48 hours\n\n"
+        "Need anything else? Feel free to explore the menu below!"
+    )
 
     await update.message.reply_text(
         response,
-        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Main Menu", callback_data='main_menu')]])
+        parse_mode='Markdown',
+        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🏠 Main Menu", callback_data='main_menu')]])
     )
     context.user_data.clear()
     context.user_data['support_active'] = False
@@ -356,12 +395,21 @@ async def get_listed_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     await query.answer()
     
     keyboard = [
-        [InlineKeyboardButton("Yes, I want to get listed", callback_data='get_listed_yes')],
-        [InlineKeyboardButton("Back to Main Menu", callback_data='main_menu')]
+        [InlineKeyboardButton("✅ Yes, let's get started!", callback_data='get_listed_yes')],
+        [InlineKeyboardButton("⬅️ Back to Main Menu", callback_data='main_menu')]
     ]
     
     await query.edit_message_text(
-        "Would you like to proceed with getting your project listed on MetaDAO?",
+        "🚀 *Get Your Project Listed on MetaDAO*\n\n"
+        "Great choice! We'll guide you through the listing process.\n\n"
+        "*What you'll need:*\n"
+        "• Project details and description\n"
+        "• Token information\n"
+        "• Images and branding\n"
+        "• Financial details\n\n"
+        "⏱️ *Time required:* ~5 minutes\n\n"
+        "Ready to begin?",
+        parse_mode='Markdown',
         reply_markup=InlineKeyboardMarkup(keyboard)
     )
     return GET_LISTED_CONFIRM
@@ -373,13 +421,16 @@ async def get_listed_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE)
     if query.data == 'get_listed_yes':
         context.user_data['get_listed_active'] = True
         await query.edit_message_text(
-            "Great! Let's get started. Please provide your project name and a short description (1-2 sentences):"
+            "🎯 *Step 1 of 11: Project Overview*\n\n"
+            "Please provide your *project name* and a *short description* (1-2 sentences):\n\n"
+            "💡 *Example:* \"Umbra - A privacy-focused DeFi protocol enabling anonymous transactions on Solana.\"",
+            parse_mode='Markdown'
         )
         return PROJECT_NAME_SHORT
     else:
         await query.edit_message_text(
-            "No problem! Returning to main menu.",
-            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Main Menu", callback_data='main_menu')]])
+            "👍 No problem! Feel free to come back anytime.",
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🏠 Main Menu", callback_data='main_menu')]])
         )
         return ConversationHandler.END
 
@@ -387,35 +438,65 @@ async def get_project_name_short(update: Update, context: ContextTypes.DEFAULT_T
     if not context.user_data.get('get_listed_active'):
         return ConversationHandler.END
     context.user_data['project_name_short'] = update.message.text
-    await update.message.reply_text("Thank you! Now please provide a longer, more detailed description of your project:")
+    await update.message.reply_text(
+        "✅ Great start!\n\n"
+        "📝 *Step 2 of 11: Detailed Description*\n\n"
+        "Now provide a *longer, more detailed description* of your project:\n\n"
+        "💡 Include your mission, key features, and what makes you unique.",
+        parse_mode='Markdown'
+    )
     return PROJECT_DESC_LONG
 
 async def get_project_desc_long(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     if not context.user_data.get('get_listed_active'):
         return ConversationHandler.END
     context.user_data['project_desc_long'] = update.message.text
-    await update.message.reply_text("Great! What is your token name?")
+    await update.message.reply_text(
+        "✅ Excellent!\n\n"
+        "🪙 *Step 3 of 11: Token Name*\n\n"
+        "What is your *token name*?\n\n"
+        "💡 *Example:* \"Umbra Token\"",
+        parse_mode='Markdown'
+    )
     return TOKEN_NAME
 
 async def get_token_name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     if not context.user_data.get('get_listed_active'):
         return ConversationHandler.END
     context.user_data['token_name'] = update.message.text
-    await update.message.reply_text("What is your token ticker symbol?")
+    await update.message.reply_text(
+        "✅ Got it!\n\n"
+        "🏷️ *Step 4 of 11: Token Ticker*\n\n"
+        "What is your *token ticker symbol*?\n\n"
+        "💡 *Example:* \"UMBRA\"",
+        parse_mode='Markdown'
+    )
     return TOKEN_TICKER
 
 async def get_token_ticker(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     if not context.user_data.get('get_listed_active'):
         return ConversationHandler.END
     context.user_data['token_ticker'] = update.message.text
-    await update.message.reply_text("Please provide the URL for your project image:")
+    await update.message.reply_text(
+        "✅ Perfect!\n\n"
+        "🖼️ *Step 5 of 11: Project Image*\n\n"
+        "Please provide the *URL for your project image*:\n\n"
+        "💡 This should be your logo or main branding image (PNG, JPG, or SVG)",
+        parse_mode='Markdown'
+    )
     return PROJECT_IMAGE
 
 async def get_project_image(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     if not context.user_data.get('get_listed_active'):
         return ConversationHandler.END
     context.user_data['project_image'] = update.message.text
-    await update.message.reply_text("Please provide the URL for your token image (or type 'same' if it's the same as the project image):")
+    await update.message.reply_text(
+        "✅ Image saved!\n\n"
+        "🎨 *Step 6 of 11: Token Image*\n\n"
+        "Please provide the *URL for your token image*:\n\n"
+        "💡 Type 'same' if it's the same as your project image",
+        parse_mode='Markdown'
+    )
     return TOKEN_IMAGE
 
 async def get_token_image(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -426,35 +507,65 @@ async def get_token_image(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         context.user_data['token_image'] = context.user_data['project_image']
     else:
         context.user_data['token_image'] = token_image
-    await update.message.reply_text("What is your minimum raise amount? (e.g., $50,000)")
+    await update.message.reply_text(
+        "✅ Looks good!\n\n"
+        "💵 *Step 7 of 11: Minimum Raise*\n\n"
+        "What is your *minimum raise amount*?\n\n"
+        "💡 *Example:* \"$50,000\" or \"50000 USDC\"",
+        parse_mode='Markdown'
+    )
     return MIN_RAISE
 
 async def get_min_raise(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     if not context.user_data.get('get_listed_active'):
         return ConversationHandler.END
     context.user_data['min_raise'] = update.message.text
-    await update.message.reply_text("What is your monthly team budget? (e.g., $10,000)")
+    await update.message.reply_text(
+        "✅ Noted!\n\n"
+        "📊 *Step 8 of 11: Monthly Budget*\n\n"
+        "What is your *monthly team budget*?\n\n"
+        "💡 *Example:* \"$10,000\"",
+        parse_mode='Markdown'
+    )
     return MONTHLY_BUDGET
 
 async def get_monthly_budget(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     if not context.user_data.get('get_listed_active'):
         return ConversationHandler.END
     context.user_data['monthly_budget'] = update.message.text
-    await update.message.reply_text("What is your performance package amount? (e.g., $25,000)")
+    await update.message.reply_text(
+        "✅ Understood!\n\n"
+        "🎁 *Step 9 of 11: Performance Package*\n\n"
+        "What is your *performance package amount*?\n\n"
+        "💡 *Example:* \"$25,000\"",
+        parse_mode='Markdown'
+    )
     return PERFORMANCE_PACKAGE
 
 async def get_performance_package(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     if not context.user_data.get('get_listed_active'):
         return ConversationHandler.END
     context.user_data['performance_package'] = update.message.text
-    await update.message.reply_text("What is the minimum unlock time for the performance package? (e.g., 6 months)")
+    await update.message.reply_text(
+        "✅ Great!\n\n"
+        "⏰ *Step 10 of 11: Unlock Time*\n\n"
+        "What is the *minimum unlock time* for the performance package?\n\n"
+        "💡 *Example:* \"6 months\" or \"180 days\"",
+        parse_mode='Markdown'
+    )
     return PERFORMANCE_UNLOCK_TIME
 
 async def get_performance_unlock_time(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     if not context.user_data.get('get_listed_active'):
         return ConversationHandler.END
     context.user_data['performance_unlock_time'] = update.message.text
-    await update.message.reply_text("Finally, please list any intellectual property (patents, trademarks, etc.) or type 'none':")
+    await update.message.reply_text(
+        "✅ Almost done!\n\n"
+        "📜 *Step 11 of 11: Intellectual Property*\n\n"
+        "Please list any *intellectual property* (patents, trademarks, etc.):\n\n"
+        "💡 Type 'none' if you don't have any",
+        parse_mode='Markdown'
+    )
     return INTELLECTUAL_PROPERTY
 
 async def get_intellectual_property(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -474,8 +585,11 @@ async def get_intellectual_property(update: Update, context: ContextTypes.DEFAUL
     
     if missing_fields:
         await update.message.reply_text(
-            f"Some fields are missing: {', '.join(missing_fields)}. Please start over with /start",
-            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Main Menu", callback_data='main_menu')]])
+            f"❌ *Oops! Some information is missing*\n\n"
+            f"Missing fields: {', '.join(missing_fields)}\n\n"
+            f"Please start over with /start to submit your listing.",
+            parse_mode='Markdown',
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🏠 Main Menu", callback_data='main_menu')]])
         )
         context.user_data.clear()
         return ConversationHandler.END
@@ -493,8 +607,16 @@ async def get_intellectual_property(update: Update, context: ContextTypes.DEFAUL
     )
     
     await update.message.reply_text(
-        "Thank you for your submission! Our team will review your project and get back to you soon.",
-        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Main Menu", callback_data='main_menu')]])
+        "🎉 *Submission Complete!*\n\n"
+        "Congratulations! Your project listing has been submitted successfully.\n\n"
+        "*What happens next:*\n"
+        "1️⃣ Our team will review your submission\n"
+        "2️⃣ We'll reach out if we need any additional information\n"
+        "3️⃣ You'll receive a decision within 3-5 business days\n\n"
+        "📧 We'll contact you via Telegram or the email you provided.\n\n"
+        "Thank you for choosing MetaDAO! 🚀",
+        parse_mode='Markdown',
+        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🏠 Main Menu", callback_data='main_menu')]])
     )
     
     context.user_data.clear()
@@ -505,8 +627,9 @@ async def get_listed_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     if context.user_data.get('get_listed_active'):
         context.user_data.clear()
         await update.message.reply_text(
-            "Get listed submission cancelled.",
-            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Main Menu", callback_data='main_menu')]])
+            "❌ *Listing Cancelled*\n\nYour get listed submission has been cancelled. You can restart anytime!",
+            parse_mode='Markdown',
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🏠 Main Menu", callback_data='main_menu')]])
         )
         return ConversationHandler.END
     return ConversationHandler.END
@@ -514,28 +637,39 @@ async def get_listed_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) 
 # CA command handler - works in all chat types
 async def ca_command_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await update.message.reply_text(
-        f"META Contract Address:\n`{META_CA}`",
+        "🪙 *META Contract Address*\n\n"
+        f"`{META_CA}`\n\n"
+        "💡 Tap to copy the address above",
         parse_mode='Markdown'
     )
 
 # Web command handler - works in all chat types
 async def web_command_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await update.message.reply_text(
-        f"MetaDAO Website:\n{RESOURCE_LINKS['website']}",
+        "🌐 *MetaDAO Website*\n\n"
+        f"Visit us at: {RESOURCE_LINKS['website']}\n\n"
+        "Explore our platform, learn about futarchy, and discover upcoming projects!",
+        parse_mode='Markdown',
         disable_web_page_preview=True
     )
 
 # Docs command handler - works in all chat types
 async def docs_command_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await update.message.reply_text(
-        f"MetaDAO Documentation:\n{RESOURCE_LINKS['docs']}",
+        "📚 *MetaDAO Documentation*\n\n"
+        f"Access our docs at: {RESOURCE_LINKS['docs']}\n\n"
+        "Find guides, tutorials, and detailed information about our platform.",
+        parse_mode='Markdown',
         disable_web_page_preview=True
     )
 
 # ICOs command handler - works in all chat types
 async def icos_command_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await update.message.reply_text(
-        f"MetaDAO Calendar & ICOs:\n{RESOURCE_LINKS['icos']}",
+        "📅 *MetaDAO Calendar & ICOs*\n\n"
+        f"View all upcoming ICOs: {RESOURCE_LINKS['icos']}\n\n"
+        "Stay updated on the latest project launches and investment opportunities!",
+        parse_mode='Markdown',
         disable_web_page_preview=True
     )
 
@@ -545,7 +679,11 @@ async def handle_ca(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         return
     ca_variants = ["CA", "ca", "Ca"]
     if update.message.text in ca_variants:
-        await update.message.reply_text(META_CA, reply_markup=ReplyKeyboardRemove())
+        await update.message.reply_text(
+            f"🪙 *META Contract Address*\n\n`{META_CA}`\n\n💡 Tap to copy",
+            parse_mode='Markdown',
+            reply_markup=ReplyKeyboardRemove()
+        )
 
 # Text handler (placeholder)
 async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
