@@ -102,14 +102,36 @@ def proposals_inline_keyboard():
     return InlineKeyboardMarkup(keyboard)
 
 # Initialize Google Sheets client
-def get_sheets_client():
+def get_sheets_client(sheet_name='Support Requests'):
     try:
         if not GOOGLE_CREDENTIALS:
             return None
         scopes = ['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/drive']
         creds = Credentials.from_service_account_info(GOOGLE_CREDENTIALS, scopes=scopes)
         client = gspread.authorize(creds)
-        sheet = client.open(SHEET_NAME).sheet1
+        spreadsheet = client.open(SHEET_NAME)
+        
+        # Try to get the sheet by name, create if it doesn't exist
+        try:
+            sheet = spreadsheet.worksheet(sheet_name)
+        except gspread.exceptions.WorksheetNotFound:
+            logger.info(f"Sheet '{sheet_name}' not found, creating it...")
+            sheet = spreadsheet.add_worksheet(title=sheet_name, rows=1000, cols=20)
+            
+            # Add headers based on sheet type
+            if sheet_name == 'Get Listed':
+                headers = [
+                    'Timestamp', 'Project Name', 'Contact', 'Category',
+                    'Project Name Short', 'Project Description', 'Token Name', 'Token Ticker',
+                    'Project Image', 'Token Image', 'Min Raise', 'Monthly Budget',
+                    'Performance Package', 'Performance Unlock Time', 'Intellectual Property'
+                ]
+            else:  # Support Requests
+                headers = ['Timestamp', 'Name', 'Email', 'Question', 'Category']
+            
+            sheet.append_row(headers)
+            logger.info(f"Created sheet '{sheet_name}' with headers")
+        
         return sheet
     except Exception as e:
         logger.error(f"Error setting up Google Sheets: {e}")
@@ -117,7 +139,9 @@ def get_sheets_client():
 
 # Function to log request to Google Sheets
 def log_request(name, email, question, category, extra_data=None):
-    sheet = get_sheets_client()
+    sheet_name = 'Get Listed' if category == 'Get Listed' else 'Support Requests'
+    sheet = get_sheets_client(sheet_name)
+    
     if sheet:
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         if extra_data:
@@ -140,7 +164,7 @@ def log_request(name, email, question, category, extra_data=None):
         else:
             # For simple support requests
             sheet.append_row([timestamp, name, email, question, category])
-        logger.info(f"Request logged: {name}, {email}, {category}")
+        logger.info(f"Request logged to '{sheet_name}' sheet: {name}, {email}, {category}")
     else:
         logger.warning("Could not log to Google Sheets - client not available")
 
