@@ -500,6 +500,16 @@ async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 
 _initialized = False
 _application = None
+_event_loop = None
+
+def get_event_loop():
+    """Get or create a persistent event loop for the serverless instance"""
+    global _event_loop
+    if _event_loop is None or _event_loop.is_closed():
+        _event_loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(_event_loop)
+        logger.info("Created new persistent event loop")
+    return _event_loop
 
 async def get_application():
     """Get or create application instance with proper event loop binding"""
@@ -599,7 +609,8 @@ class handler(BaseHTTPRequestHandler):
             
             logger.info(f"Processing update {update_id}")
             
-            asyncio.run(self._process_update_async(update_dict, update_id))
+            loop = get_event_loop()
+            loop.run_until_complete(self._process_update_async(update_dict, update_id))
             
         except Exception as e:
             logger.error(f"Error processing webhook: {e}")
