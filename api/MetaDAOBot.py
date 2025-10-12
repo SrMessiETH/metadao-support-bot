@@ -584,30 +584,16 @@ async def ensure_initialized():
         logger.info("Bot commands menu set successfully")
         _initialized = True
 
-try:
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    loop.run_until_complete(application.initialize())
-    loop.run_until_complete(application.bot.initialize())
-    from telegram import BotCommand
-    commands = [
-        BotCommand("start", "Start the bot and show main menu"),
-        BotCommand("help", "Show help information"),
-        BotCommand("cancel", "Cancel current operation")
-    ]
-    loop.run_until_complete(application.bot.set_my_commands(commands))
-    logger.info("Bot commands menu registered successfully")
-    try:
-        loop.run_until_complete(application.bot.get_me())
-        logger.info("Bot HTTP client warmed up successfully")
-    except Exception as e:
-        logger.warning(f"Could not warm up bot HTTP client: {e}")
-    loop.close()
-    _initialized = True
-    logger.info("Application and bot pre-initialized successfully")
-except Exception as e:
-    logger.warning(f"Could not pre-initialize application: {e}")
-    _initialized = False
+_processing_updates = set()
+_update_cleanup_tasks = {}
+
+async def _cleanup_update_id(update_id: int):
+    """Remove update ID from tracking after 30 seconds"""
+    await asyncio.sleep(30)
+    _processing_updates.discard(update_id)
+    if update_id in _update_cleanup_tasks:
+        del _update_cleanup_tasks[update_id]
+    logger.info(f"Cleaned up update ID: {update_id}")
 
 class handler(BaseHTTPRequestHandler):
     def do_POST(self):
@@ -645,20 +631,30 @@ class handler(BaseHTTPRequestHandler):
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
             try:
+                # Ensure initialization
                 if not _initialized:
                     loop.run_until_complete(ensure_initialized())
+                
+                # Process the update
                 loop.run_until_complete(application.process_update(update))
                 logger.info("[v0] Update processed successfully")
                 
+                # Wait for ALL pending tasks to complete (including query.answer())
                 pending = asyncio.all_tasks(loop)
                 if pending:
                     logger.info(f"[v0] Waiting for {len(pending)} pending tasks to complete")
                     loop.run_until_complete(asyncio.gather(*pending, return_exceptions=True))
                     logger.info("[v0] All pending tasks completed")
-            finally:
-                loop.close()
+                
+                # Schedule cleanup for later (in a separate loop)
                 if update_id:
-                    asyncio.create_task(_cleanup_update_id(update_id))
+                    cleanup_loop = asyncio.new_event_loop()
+                    cleanup_task = cleanup_loop.create_task(_cleanup_update_id(update_id))
+                    _update_cleanup_tasks[update_id] = (cleanup_loop, cleanup_task)
+                    
+            finally:
+                # Close the loop only after everything is done
+                loop.close()
             
             # Send success response
             self.send_response(200)
@@ -671,6 +667,11 @@ class handler(BaseHTTPRequestHandler):
             logger.error(f"[v0] Error processing webhook: {e}")
             import traceback
             traceback.print_exc()
+            
+            # Remove from processing set on error
+            if update_id and update_id in _processing_updates:
+                _processing_updates.discard(update_id)
+            
             self.send_response(500)
             self.send_header('Content-Type', 'application/json')
             self.end_headers()
@@ -685,10 +686,27 @@ class handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(b'MetaDAO Bot is running!')
 
-async def _cleanup_update_id(update_id: int):
-    """Remove update ID from tracking after 30 seconds"""
-    await asyncio.sleep(30)
-    _processing_updates.discard(update_id)
-    logger.info(f"Cleaned up update ID: {update_id}")
-
-_processing_updates = set()
+try:
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    loop.run_until_complete(application.initialize())
+    loop.run_until_complete(application.bot.initialize())
+    from telegram import BotCommand
+    commands = [
+        BotCommand("start", "Start the bot and show main menu"),
+        BotCommand("help", "Show help information"),
+        BotCommand("cancel", "Cancel current operation")
+    ]
+    loop.run_until_complete(application.bot.set_my_commands(commands))
+    logger.info("Bot commands menu registered successfully")
+    try:
+        loop.run_until_complete(application.bot.get_me())
+        logger.info("Bot HTTP client warmed up successfully")
+    except Exception as e:
+        logger.warning(f"Could not warm up bot HTTP client: {e}")
+    loop.close()
+    _initialized = True
+    logger.info("Application and bot pre-initialized successfully")
+except Exception as e:
+    logger.warning(f"Could not pre-initialize application: {e}")
+    _initialized = False
