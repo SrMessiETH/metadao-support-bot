@@ -1,0 +1,67 @@
+# Build the application (once, outside handler)
+application = Application.builder().token(BOT_TOKEN).build()
+
+# Conversation handler (updated entry point for callback)
+conv_handler = ConversationHandler(
+    entry_points=[CallbackQueryHandler(support_start, pattern='^support_request$')],
+    states={
+        NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_name)],
+        EMAIL: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_email)],
+        QUESTION: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_question)],
+    },
+    fallbacks=[],
+)
+
+# Add handlers
+application.add_handler(CallbackQueryHandler(button_handler))
+application.add_handler(MessageHandler(filters.Regex(r'^(CA|ca|Ca)$'), handle_ca))
+application.add_handler(conv_handler)
+application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, text_handler))
+application.add_handler(MessageHandler(filters.COMMAND, text_handler))  # Handle commands as text
+
+from http.server import BaseHTTPRequestHandler
+import asyncio
+
+class handler(BaseHTTPRequestHandler):
+    """Vercel serverless function handler for Telegram webhook"""
+    
+    def do_POST(self):
+        """Handle incoming webhook updates from Telegram"""
+        try:
+            # Read the incoming request body
+            content_length = int(self.headers.get('Content-Length', 0))
+            post_data = self.rfile.read(content_length)
+            
+            # Parse the JSON update from Telegram
+            update_data = json.loads(post_data.decode('utf-8'))
+            logger.info(f"[v0] Received update: {update_data}")
+            
+            # Convert to Telegram Update object
+            update = Update.de_json(update_data, application.bot)
+            
+            # Process the update asynchronously
+            asyncio.run(application.process_update(update))
+            
+            # Send success response
+            self.send_response(200)
+            self.send_header('Content-type', 'application/json')
+            self.end_headers()
+            self.wfile.write(json.dumps({"ok": True}).encode())
+            
+        except Exception as e:
+            logger.error(f"[v0] Error processing update: {e}", exc_info=True)
+            self.send_response(500)
+            self.send_header('Content-type', 'application/json')
+            self.end_headers()
+            self.wfile.write(json.dumps({"ok": False, "error": str(e)}).encode())
+    
+    def do_GET(self):
+        """Health check endpoint"""
+        self.send_response(200)
+        self.send_header('Content-type', 'text/plain')
+        self.end_headers()
+        self.wfile.write(b"MetaDAO Support Bot is running on Vercel!")
+
+# if __name__ == "__main__":
+#     logger.info("Starting MetaDAO Support Bot...")
+#     application.run_polling(drop_pending_updates=True)
