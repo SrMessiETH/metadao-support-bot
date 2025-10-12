@@ -569,14 +569,6 @@ async def ensure_initialized():
 _processing_updates = set()
 _update_cleanup_tasks = {}
 
-async def _cleanup_update_id(update_id: int):
-    """Remove update ID from tracking after 30 seconds"""
-    await asyncio.sleep(30)
-    _processing_updates.discard(update_id)
-    if update_id in _update_cleanup_tasks:
-        del _update_cleanup_tasks[update_id]
-    logger.info(f"Cleaned up update ID: {update_id}")
-
 class handler(BaseHTTPRequestHandler):
     def send_success_response(self):
         self.send_response(200)
@@ -601,6 +593,7 @@ class handler(BaseHTTPRequestHandler):
             update_id = update_dict.get('update_id')
             if update_id and update_id in _processing_updates:
                 logger.warning(f"Duplicate update {update_id} detected, skipping")
+                self.send_success_response()
                 return
             
             if update_id:
@@ -611,47 +604,9 @@ class handler(BaseHTTPRequestHandler):
             # Create Update object
             update = Update.de_json(update_dict, application.bot)
             
-            # Create a new event loop for this invocation
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            try:
-                # Ensure initialization
-                loop.run_until_complete(ensure_initialized())
-                
-                loop.run_until_complete(application.process_update(update))
-                logger.info("Update processed successfully")
-                
-                for attempt in range(5):
-                    pending = asyncio.all_tasks(loop)
-                    if pending:
-                        logger.info(f"Attempt {attempt + 1}: Waiting for {len(pending)} pending tasks")
-                        loop.run_until_complete(asyncio.gather(*pending, return_exceptions=True))
-                    # Longer delay to allow HTTP client cleanup to complete
-                    loop.run_until_complete(asyncio.sleep(0.3))
-                
-                logger.info("All pending tasks completed")
-                
-                loop.run_until_complete(asyncio.sleep(0.5))
-                
-                # Schedule cleanup for later
-                if update_id:
-                    cleanup_loop = asyncio.new_event_loop()
-                    cleanup_task = cleanup_loop.create_task(_cleanup_update_id(update_id))
-                    _update_cleanup_tasks[update_id] = (cleanup_loop, cleanup_task)
-                
-            finally:
-                try:
-                    # Cancel any remaining tasks
-                    pending = asyncio.all_tasks(loop)
-                    for task in pending:
-                        task.cancel()
-                    if pending:
-                        loop.run_until_complete(asyncio.gather(*pending, return_exceptions=True))
-                    
-                    loop.run_until_complete(asyncio.sleep(0.2))
-                finally:
-                    loop.close()
-                
+            # Use asyncio.run() which properly manages event loop lifecycle
+            asyncio.run(self._process_update_async(update, update_id))
+            
         except Exception as e:
             logger.error(f"Error processing webhook: {e}")
             import traceback
@@ -662,6 +617,34 @@ class handler(BaseHTTPRequestHandler):
                 _processing_updates.discard(update_id)
         finally:
             self.send_success_response()
+    
+    async def _process_update_async(self, update: Update, update_id: int):
+        """Async function to process update with proper cleanup"""
+        try:
+            # Ensure initialization
+            await ensure_initialized()
+            
+            # Process the update
+            await application.process_update(update)
+            logger.info("Update processed successfully")
+            
+            # Give time for any pending HTTP operations to complete
+            await asyncio.sleep(0.5)
+            
+            # Schedule cleanup for later
+            if update_id:
+                asyncio.create_task(self._cleanup_update_id_delayed(update_id))
+                
+        except Exception as e:
+            logger.error(f"Error in async update processing: {e}")
+            import traceback
+            traceback.print_exc()
+    
+    async def _cleanup_update_id_delayed(self, update_id: int):
+        """Remove update ID from tracking after delay"""
+        await asyncio.sleep(30)
+        _processing_updates.discard(update_id)
+        logger.info(f"Cleaned up update ID: {update_id}")
 
     def do_GET(self):
         """Handle GET requests for health check"""
