@@ -436,7 +436,7 @@ async def get_email(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     
     await update.message.reply_text(
         "✅ Perfect!\n\n"
-        f"📝 *Step 3 of 3:* Please describe your *{subcategory.lower()}* in detail:",
+        f"📝 *Step 3 of 3:* Please describe your *{subcategory.lower()}* request in detail:",
         parse_mode='Markdown'
     )
     return QUESTION
