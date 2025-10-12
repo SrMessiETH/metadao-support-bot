@@ -1,7 +1,7 @@
 import json
 import logging
 from telegram.ext import Application, ConversationHandler, CommandHandler, MessageHandler, CallbackQueryHandler, filters, ContextTypes
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardRemove, BotCommand
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardRemove, BotCommand, BotCommandScopeAllPrivateChats, BotCommandScopeAllGroupChats
 from telegram.request import HTTPXRequest
 import os
 from datetime import datetime
@@ -559,7 +559,7 @@ async def get_application():
                 PERFORMANCE_UNLOCK_TIME: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_performance_unlock_time)],
                 INTELLECTUAL_PROPERTY: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_intellectual_property)],
             },
-            fallbacks=[CommandHandler('cancel', get_listed_cancel)],
+            fallbacks=[CommandHandler('cancel', get_listed_cancel, filters=filters.ChatType.PRIVATE)],
         )
 
         # Support conversation handler
@@ -570,13 +570,13 @@ async def get_application():
                 EMAIL: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_email)],
                 QUESTION: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_question)],
             },
-            fallbacks=[CommandHandler('cancel', cancel_handler)],
+            fallbacks=[CommandHandler('cancel', cancel_handler, filters=filters.ChatType.PRIVATE)],
         )
 
         # Add handlers in correct order
-        _application.add_handler(CommandHandler('start', start_handler))
-        _application.add_handler(CommandHandler('help', help_handler))
-        _application.add_handler(CommandHandler('cancel', cancel_handler))
+        _application.add_handler(CommandHandler('start', start_handler, filters=filters.ChatType.PRIVATE))
+        _application.add_handler(CommandHandler('help', help_handler, filters=filters.ChatType.PRIVATE))
+        _application.add_handler(CommandHandler('cancel', cancel_handler, filters=filters.ChatType.PRIVATE))
         _application.add_handler(get_listed_conv_handler)
         _application.add_handler(conv_handler)
         _application.add_handler(CallbackQueryHandler(button_handler, pattern='^(?!get_listed$|support_request$)'))
@@ -587,13 +587,19 @@ async def get_application():
     if not _initialized:
         await _application.initialize()
         await _application.bot.initialize()
+        
         commands = [
             BotCommand("start", "Start the bot and show main menu"),
             BotCommand("help", "Show help information"),
             BotCommand("cancel", "Cancel current operation")
         ]
-        await _application.bot.set_my_commands(commands)
-        logger.info("Bot commands menu set successfully")
+        # Set commands for private chats only
+        await _application.bot.set_my_commands(commands, scope=BotCommandScopeAllPrivateChats())
+        
+        # Set empty commands for groups to hide them
+        await _application.bot.set_my_commands([], scope=BotCommandScopeAllGroupChats())
+        
+        logger.info("Bot commands set for private chats only")
         _initialized = True
     
     return _application
