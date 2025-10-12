@@ -302,6 +302,9 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
 # Support conversation handlers
 async def support_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    query = update.callback_query
+    await query.answer()
+    await query.edit_message_text("To submit a support request, please provide your full name:")
     context.user_data['support_active'] = True
     return NAME
 
@@ -530,12 +533,28 @@ async def get_performance_unlock_time(update: Update, context: ContextTypes.DEFA
     )
     return INTELLECTUAL_PROPERTY
 
+_processing_updates = set()
+
 async def get_intellectual_property(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """Get intellectual property list and complete submission"""
     if not context.user_data.get('get_listed_active'):
         return ConversationHandler.END
     
     context.user_data['intellectual_property'] = update.message.text
+    
+    user_id = update.effective_user.id
+    submission_key = f"get_listed_{user_id}_{context.user_data.get('token_ticker', '')}"
+    
+    if submission_key in _processing_updates:
+        logger.warning(f"Duplicate submission detected for {submission_key}, skipping")
+        await update.message.reply_text(
+            "This submission has already been processed.",
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Main Menu", callback_data='main_menu')]])
+        )
+        context.user_data.clear()
+        return ConversationHandler.END
+    
+    _processing_updates.add(submission_key)
     
     # Validate all fields are filled
     required_fields = [
@@ -547,6 +566,7 @@ async def get_intellectual_property(update: Update, context: ContextTypes.DEFAUL
     missing_fields = [field for field in required_fields if not context.user_data.get(field)]
     
     if missing_fields:
+        _processing_updates.discard(submission_key)
         await update.message.reply_text(
             f"Error: The following fields are missing: {', '.join(missing_fields)}\n\n"
             "Please start over by typing /cancel and then selecting Get Listed again.",
@@ -589,9 +609,17 @@ async def get_intellectual_property(update: Update, context: ContextTypes.DEFAUL
         reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Main Menu", callback_data='main_menu')]])
     )
     
+    asyncio.create_task(_cleanup_submission_key(submission_key))
+    
     context.user_data.clear()
     context.user_data['get_listed_active'] = False
     return ConversationHandler.END
+
+async def _cleanup_submission_key(key: str):
+    """Remove submission key from tracking after 60 seconds"""
+    await asyncio.sleep(60)
+    _processing_updates.discard(key)
+    logger.info(f"Cleaned up submission key: {key}")
 
 async def get_listed_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """Cancel get listed conversation"""
@@ -742,6 +770,21 @@ class handler(BaseHTTPRequestHandler):
             update_dict = json.loads(body.decode('utf-8'))
             logger.info(f"[v0] Parsed update: {update_dict}")
             
+            update_id = update_dict.get('update_id')
+            if update_id and update_id in _processing_updates:
+                logger.warning(f"Duplicate update {update_id} detected, skipping")
+                self.send_response(200)
+                self.send_header('Content-Type', 'application/json')
+                self.end_headers()
+                response = json.dumps({'ok': True, 'skipped': 'duplicate'})
+                self.wfile.write(response.encode('utf-8'))
+                return
+            
+            if update_id:
+                _processing_updates.add(update_id)
+            
+            logger.info(f"[v0] Processing update {update_id}")
+            
             # Create Update object and process
             update = Update.de_json(update_dict, application.bot)
             
@@ -760,6 +803,8 @@ class handler(BaseHTTPRequestHandler):
                     logger.info("[v0] All pending tasks completed")
             finally:
                 loop.close()
+                if update_id:
+                    asyncio.create_task(_cleanup_update_id(update_id))
             
             # Send success response
             self.send_response(200)
@@ -785,3 +830,9 @@ class handler(BaseHTTPRequestHandler):
         self.send_header('Content-Type', 'text/plain')
         self.end_headers()
         self.wfile.write(b'MetaDAO Bot is running!')
+
+async def _cleanup_update_id(update_id: int):
+    """Remove update ID from tracking after 30 seconds"""
+    await asyncio.sleep(30)
+    _processing_updates.discard(update_id)
+    logger.info(f"Cleaned up update ID: {update_id}")
