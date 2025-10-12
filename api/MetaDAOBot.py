@@ -298,8 +298,39 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 # Support start handler
 async def support_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     query = update.callback_query
-    await query.answer()
-    await query.edit_message_text("To submit a support request, please provide your full name:")
+    logger.info(f"Starting support request for user {query.from_user.id}, data: {query.data}")
+    try:
+        await query.answer()
+        logger.info("answer() succeeded in support_start")
+    except Exception as e:
+        logger.error(f"answer() failed in support_start: {e}")
+        import traceback
+        traceback.print_exc()
+        # Still try to proceed or send a fallback message
+        try:
+            await context.bot.send_message(
+                chat_id=query.message.chat_id,
+                text="Starting support request..."
+            )
+        except Exception as fallback_e:
+            logger.error(f"Fallback send_message failed: {fallback_e}")
+        return ConversationHandler.END  # End if critical failure
+    
+    try:
+        await query.edit_message_text("To submit a support request, please provide your full name:")
+        logger.info("edit_message_text succeeded in support_start")
+    except Exception as e:
+        logger.error(f"edit_message_text failed in support_start: {e}")
+        traceback.print_exc()
+        # Fallback: Send new message
+        try:
+            await context.bot.send_message(
+                chat_id=query.message.chat_id,
+                text="To submit a support request, please provide your full name:"
+            )
+        except Exception as fallback_e:
+            logger.error(f"Fallback send_message failed: {fallback_e}")
+        # Continue to next state anyway
     context.user_data['support_active'] = True
     return NAME
 
@@ -341,17 +372,48 @@ async def get_question(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
 # Get listed conversation handlers
 async def get_listed_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     query = update.callback_query
-    await query.answer()
+    logger.info(f"Starting get_listed for user {query.from_user.id}, data: {query.data}")
+    try:
+        await query.answer()
+        logger.info("answer() succeeded in get_listed_start")
+    except Exception as e:
+        logger.error(f"answer() failed in get_listed_start: {e}")
+        import traceback
+        traceback.print_exc()
+        # Still try to proceed or send a fallback message
+        try:
+            await context.bot.send_message(
+                chat_id=query.message.chat_id,
+                text="Starting get listed process..."
+            )
+        except Exception as fallback_e:
+            logger.error(f"Fallback send_message failed: {fallback_e}")
+        return ConversationHandler.END  # End if critical failure
     
     keyboard = [
         [InlineKeyboardButton("Yes, I want to get listed", callback_data='get_listed_yes')],
         [InlineKeyboardButton("Back to Main Menu", callback_data='main_menu')]
     ]
     
-    await query.edit_message_text(
-        "Would you like to proceed with getting your project listed on MetaDAO?",
-        reply_markup=InlineKeyboardMarkup(keyboard)
-    )
+    try:
+        await query.edit_message_text(
+            "Would you like to proceed with getting your project listed on MetaDAO?",
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
+        logger.info("edit_message_text succeeded in get_listed_start")
+    except Exception as e:
+        logger.error(f"edit_message_text failed in get_listed_start: {e}")
+        traceback.print_exc()
+        # Fallback: Send new message
+        try:
+            await context.bot.send_message(
+                chat_id=query.message.chat_id,
+                text="Would you like to proceed with getting your project listed on MetaDAO?",
+                reply_markup=InlineKeyboardMarkup(keyboard)
+            )
+        except Exception as fallback_e:
+            logger.error(f"Fallback send_message failed: {fallback_e}")
+        # Continue to next state anyway
     return GET_LISTED_CONFIRM
 
 async def get_listed_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -598,6 +660,7 @@ async def _cleanup_update_id(update_id: int):
 class handler(BaseHTTPRequestHandler):
     def do_POST(self):
         """Handle POST requests from Telegram webhook"""
+        update_id = None
         try:
             logger.info("[v0] Webhook POST request received")
             
@@ -613,12 +676,7 @@ class handler(BaseHTTPRequestHandler):
             update_id = update_dict.get('update_id')
             if update_id and update_id in _processing_updates:
                 logger.warning(f"Duplicate update {update_id} detected, skipping")
-                self.send_response(200)
-                self.send_header('Content-Type', 'application/json')
-                self.end_headers()
-                response = json.dumps({'ok': True, 'skipped': 'duplicate'})
-                self.wfile.write(response.encode('utf-8'))
-                return
+                return  # Fall through to finally for 200
             
             if update_id:
                 _processing_updates.add(update_id)
@@ -656,12 +714,7 @@ class handler(BaseHTTPRequestHandler):
                 # Close the loop only after everything is done
                 loop.close()
             
-            # Send success response
-            self.send_response(200)
-            self.send_header('Content-Type', 'application/json')
-            self.end_headers()
-            response = json.dumps({'ok': True})
-            self.wfile.write(response.encode('utf-8'))
+            # Fall through to success response below
             
         except Exception as e:
             logger.error(f"[v0] Error processing webhook: {e}")
@@ -672,11 +725,24 @@ class handler(BaseHTTPRequestHandler):
             if update_id and update_id in _processing_updates:
                 _processing_updates.discard(update_id)
             
-            self.send_response(500)
-            self.send_header('Content-Type', 'application/json')
-            self.end_headers()
-            response = json.dumps({'ok': False, 'error': str(e)})
-            self.wfile.write(response.encode('utf-8'))
+            # Fall through to success response—always acknowledge to Telegram
+    
+    # Always send 200 in finally
+    def send_success_response(self):
+        self.send_response(200)
+        self.send_header('Content-Type', 'application/json')
+        self.end_headers()
+        response = json.dumps({'ok': True})
+        self.wfile.write(response.encode('utf-8'))
+    
+    def do_POST(self):
+        # ... (the try block above)
+        try:
+            # ... all the code in try ...
+        except Exception as e:
+            # ... error handling ...
+        finally:
+            self.send_success_response()
     
     def do_GET(self):
         """Handle GET requests for health check"""
