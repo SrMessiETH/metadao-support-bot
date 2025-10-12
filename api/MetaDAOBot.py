@@ -276,7 +276,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         )
         return
 
-    # Handle main categories (excluding get_listed which is now a conversation)
+    # Handle main categories (excluding get_listed and support_request which are conversations)
     category_map = {
         'icos': 'ICOs',
         'how_launches_work': 'How Launches Work',
@@ -295,58 +295,178 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         )
         return
 
-    if data == 'support_request':
-        await query.edit_message_text("To submit a support request, please provide your full name:")
-        context.user_data['support_active'] = True
-        return NAME
+application = Application.builder().token(BOT_TOKEN).build()
 
-# Support conversation handlers
-async def support_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    query = update.callback_query
-    await query.answer()
-    await query.edit_message_text("To submit a support request, please provide your full name:")
-    context.user_data['support_active'] = True
-    return NAME
+# Get listed conversation handler
+get_listed_conv_handler = ConversationHandler(
+    entry_points=[CallbackQueryHandler(get_listed_start, pattern='^get_listed$')],
+    states={
+        GET_LISTED_CONFIRM: [CallbackQueryHandler(get_listed_confirm)],
+        PROJECT_NAME_SHORT: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_project_name_short)],
+        PROJECT_DESC_LONG: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_project_desc_long)],
+        TOKEN_NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_token_name)],
+        TOKEN_TICKER: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_token_ticker)],
+        PROJECT_IMAGE: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_project_image)],
+        TOKEN_IMAGE: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_token_image)],
+        MIN_RAISE: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_min_raise)],
+        MONTHLY_BUDGET: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_monthly_budget)],
+        PERFORMANCE_PACKAGE: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_performance_package)],
+        PERFORMANCE_UNLOCK_TIME: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_performance_unlock_time)],
+        INTELLECTUAL_PROPERTY: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_intellectual_property)],
+    },
+    fallbacks=[CommandHandler('cancel', get_listed_cancel)],
+)
 
-async def get_name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    if not context.user_data.get('support_active'):
-        return ConversationHandler.END
-    context.user_data['name'] = update.message.text
-    await update.message.reply_text("Thank you! Now, please provide your email address so we can contact you if needed.")
-    return EMAIL
+# Support conversation handler
+conv_handler = ConversationHandler(
+    entry_points=[CallbackQueryHandler(support_start, pattern='^support_request$')],
+    states={
+        NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_name)],
+        EMAIL: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_email)],
+        QUESTION: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_question)],
+    },
+    fallbacks=[CommandHandler('cancel', cancel_handler)],
+)
 
-async def get_email(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    if not context.user_data.get('support_active'):
-        return ConversationHandler.END
-    context.user_data['email'] = update.message.text
-    await update.message.reply_text("Now, please describe your issue, question, or bug:")
-    return QUESTION
+# Add handlers in correct order
+application.add_handler(CommandHandler('start', start_handler))
+application.add_handler(CommandHandler('help', help_handler))
+application.add_handler(CommandHandler('cancel', cancel_handler))
+# Add conversation handlers FIRST so they catch their specific patterns
+application.add_handler(get_listed_conv_handler)
+application.add_handler(conv_handler)
+# Add general callback handler LAST so it doesn't intercept conversation callbacks
+application.add_handler(CallbackQueryHandler(button_handler))
+application.add_handler(MessageHandler(filters.Regex(r'^(CA|ca|Ca)$'), handle_ca))
+application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, text_handler))
+application.add_handler(MessageHandler(filters.COMMAND, text_handler))
 
-async def get_question(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    if not context.user_data.get('support_active'):
-        return ConversationHandler.END
-    question = update.message.text
-    context.user_data['question'] = question
-    name = context.user_data['name']
-    email = context.user_data['email']
+_initialized = False
 
-    # Log to sheets
-    log_request(name, email, question, 'Support Request')
+async def ensure_initialized():
+    """Ensure application is initialized before processing updates"""
+    global _initialized
+    if not _initialized:
+        await application.initialize()
+        await application.bot.initialize()
+        from telegram import BotCommand
+        commands = [
+            BotCommand("start", "Start the bot and show main menu"),
+            BotCommand("help", "Show help information"),
+            BotCommand("cancel", "Cancel current operation")
+        ]
+        await application.bot.set_my_commands(commands)
+        logger.info("Bot commands menu set successfully")
+        _initialized = True
 
-    # Forward to support if enabled
-    await forward_to_support(update, context)
+try:
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    loop.run_until_complete(application.initialize())
+    loop.run_until_complete(application.bot.initialize())
+    from telegram import BotCommand
+    commands = [
+        BotCommand("start", "Start the bot and show main menu"),
+        BotCommand("help", "Show help information"),
+        BotCommand("cancel", "Cancel current operation")
+    ]
+    loop.run_until_complete(application.bot.set_my_commands(commands))
+    logger.info("Bot commands menu registered successfully")
+    try:
+        loop.run_until_complete(application.bot.get_me())
+        logger.info("Bot HTTP client warmed up successfully")
+    except Exception as e:
+        logger.warning(f"Could not warm up bot HTTP client: {e}")
+    loop.close()
+    _initialized = True
+    logger.info("Application and bot pre-initialized successfully")
+except Exception as e:
+    logger.warning(f"Could not pre-initialize application: {e}")
+    _initialized = False
 
-    response = "Thank you for your submission! Our support team will review it and get back to you via email soon."
+class handler(BaseHTTPRequestHandler):
+    def do_POST(self):
+        """Handle POST requests from Telegram webhook"""
+        try:
+            logger.info("[v0] Webhook POST request received")
+            
+            # Read request body
+            content_length = int(self.headers.get('Content-Length', 0))
+            body = self.rfile.read(content_length)
+            logger.info(f"[v0] Request body length: {content_length}")
+            
+            # Parse JSON update from Telegram
+            update_dict = json.loads(body.decode('utf-8'))
+            logger.info(f"[v0] Parsed update: {update_dict}")
+            
+            update_id = update_dict.get('update_id')
+            if update_id and update_id in _processing_updates:
+                logger.warning(f"Duplicate update {update_id} detected, skipping")
+                self.send_response(200)
+                self.send_header('Content-Type', 'application/json')
+                self.end_headers()
+                response = json.dumps({'ok': True, 'skipped': 'duplicate'})
+                self.wfile.write(response.encode('utf-8'))
+                return
+            
+            if update_id:
+                _processing_updates.add(update_id)
+            
+            logger.info(f"[v0] Processing update {update_id}")
+            
+            # Create Update object and process
+            update = Update.de_json(update_dict, application.bot)
+            
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            try:
+                if not _initialized:
+                    loop.run_until_complete(ensure_initialized())
+                loop.run_until_complete(application.process_update(update))
+                logger.info("[v0] Update processed successfully")
+                
+                pending = asyncio.all_tasks(loop)
+                if pending:
+                    logger.info(f"[v0] Waiting for {len(pending)} pending tasks to complete")
+                    loop.run_until_complete(asyncio.gather(*pending, return_exceptions=True))
+                    logger.info("[v0] All pending tasks completed")
+            finally:
+                loop.close()
+                if update_id:
+                    asyncio.create_task(_cleanup_update_id(update_id))
+            
+            # Send success response
+            self.send_response(200)
+            self.send_header('Content-Type', 'application/json')
+            self.end_headers()
+            response = json.dumps({'ok': True})
+            self.wfile.write(response.encode('utf-8'))
+            
+        except Exception as e:
+            logger.error(f"[v0] Error processing webhook: {e}")
+            import traceback
+            traceback.print_exc()
+            self.send_response(500)
+            self.send_header('Content-Type', 'application/json')
+            self.end_headers()
+            response = json.dumps({'ok': False, 'error': str(e)})
+            self.wfile.write(response.encode('utf-8'))
+    
+    def do_GET(self):
+        """Handle GET requests for health check"""
+        logger.info("[v0] Health check GET request received")
+        self.send_response(200)
+        self.send_header('Content-Type', 'text/plain')
+        self.end_headers()
+        self.wfile.write(b'MetaDAO Bot is running!')
 
-    await update.message.reply_text(
-        response,
-        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Main Menu", callback_data='main_menu')]])
-    )
-    context.user_data.clear()
-    context.user_data['support_active'] = False
-    return ConversationHandler.END
+async def _cleanup_update_id(update_id: int):
+    """Remove update ID from tracking after 30 seconds"""
+    await asyncio.sleep(30)
+    _processing_updates.discard(update_id)
+    logger.info(f"Cleaned up update ID: {update_id}")
 
-# Get listed conversation handlers
+# Get listed start handler
 async def get_listed_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """Start the get listed conversation"""
     query = update.callback_query
@@ -632,33 +752,51 @@ async def get_listed_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) 
         return ConversationHandler.END
     return ConversationHandler.END
 
-# Text message handler for non-support
-async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    if update.effective_chat.type != 'private':
-        return
-    text = update.message.text.lower()
-    if context.user_data.get('support_active'):
-        return
+# Support start handler
+async def support_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    query = update.callback_query
+    await query.answer()
+    await query.edit_message_text("To submit a support request, please provide your full name:")
+    context.user_data['support_active'] = True
+    return NAME
 
-    if text in ['start', '/start']:
-        await start_handler(update, context)
-        return
+async def get_name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    if not context.user_data.get('support_active'):
+        return ConversationHandler.END
+    context.user_data['name'] = update.message.text
+    await update.message.reply_text("Thank you! Now, please provide your email address so we can contact you if needed.")
+    return EMAIL
 
-    ca_variants = ["ca"]
-    if text in ca_variants:
-        # Remove any reply keyboard
-        await update.message.reply_text(META_CA, reply_markup=ReplyKeyboardRemove())
-        return
+async def get_email(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    if not context.user_data.get('support_active'):
+        return ConversationHandler.END
+    context.user_data['email'] = update.message.text
+    await update.message.reply_text("Now, please describe your issue, question, or bug:")
+    return QUESTION
 
-    # Remove any reply keyboard
+async def get_question(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    if not context.user_data.get('support_active'):
+        return ConversationHandler.END
+    question = update.message.text
+    context.user_data['question'] = question
+    name = context.user_data['name']
+    email = context.user_data['email']
+
+    # Log to sheets
+    log_request(name, email, question, 'Support Request')
+
+    # Forward to support if enabled
+    await forward_to_support(update, context)
+
+    response = "Thank you for your submission! Our support team will review it and get back to you via email soon."
+
     await update.message.reply_text(
-        "Please use the inline menu to select an option.",
-        reply_markup=ReplyKeyboardRemove()
-    )
-    await update.message.reply_text(
-        "Main Menu:",
+        response,
         reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Main Menu", callback_data='main_menu')]])
     )
+    context.user_data.clear()
+    context.user_data['support_active'] = False
+    return ConversationHandler.END
 
 # CA handler for groups only
 async def handle_ca(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -667,172 +805,3 @@ async def handle_ca(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     ca_variants = ["CA", "ca", "Ca"]
     if update.message.text in ca_variants:
         await update.message.reply_text(META_CA, reply_markup=ReplyKeyboardRemove())
-
-application = Application.builder().token(BOT_TOKEN).build()
-
-# Get listed conversation handler
-get_listed_conv_handler = ConversationHandler(
-    entry_points=[CallbackQueryHandler(get_listed_start, pattern='^get_listed$')],
-    states={
-        GET_LISTED_CONFIRM: [CallbackQueryHandler(get_listed_confirm)],
-        PROJECT_NAME_SHORT: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_project_name_short)],
-        PROJECT_DESC_LONG: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_project_desc_long)],
-        TOKEN_NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_token_name)],
-        TOKEN_TICKER: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_token_ticker)],
-        PROJECT_IMAGE: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_project_image)],
-        TOKEN_IMAGE: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_token_image)],
-        MIN_RAISE: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_min_raise)],
-        MONTHLY_BUDGET: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_monthly_budget)],
-        PERFORMANCE_PACKAGE: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_performance_package)],
-        PERFORMANCE_UNLOCK_TIME: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_performance_unlock_time)],
-        INTELLECTUAL_PROPERTY: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_intellectual_property)],
-    },
-    fallbacks=[CommandHandler('cancel', get_listed_cancel)],
-)
-
-# Support conversation handler
-conv_handler = ConversationHandler(
-    entry_points=[CallbackQueryHandler(support_start, pattern='^support_request$')],
-    states={
-        NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_name)],
-        EMAIL: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_email)],
-        QUESTION: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_question)],
-    },
-    fallbacks=[CommandHandler('cancel', cancel_handler)],
-)
-
-# Add handlers
-application.add_handler(CommandHandler('start', start_handler))
-application.add_handler(CommandHandler('help', help_handler))
-application.add_handler(CommandHandler('cancel', cancel_handler))
-application.add_handler(get_listed_conv_handler)
-application.add_handler(CallbackQueryHandler(button_handler))
-application.add_handler(MessageHandler(filters.Regex(r'^(CA|ca|Ca)$'), handle_ca))
-application.add_handler(conv_handler)
-application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, text_handler))
-application.add_handler(MessageHandler(filters.COMMAND, text_handler))
-
-_initialized = False
-
-async def ensure_initialized():
-    """Ensure application is initialized before processing updates"""
-    global _initialized
-    if not _initialized:
-        await application.initialize()
-        await application.bot.initialize()
-        from telegram import BotCommand
-        commands = [
-            BotCommand("start", "Start the bot and show main menu"),
-            BotCommand("help", "Show help information"),
-            BotCommand("cancel", "Cancel current operation")
-        ]
-        await application.bot.set_my_commands(commands)
-        logger.info("Bot commands menu set successfully")
-        _initialized = True
-
-try:
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    loop.run_until_complete(application.initialize())
-    loop.run_until_complete(application.bot.initialize())
-    from telegram import BotCommand
-    commands = [
-        BotCommand("start", "Start the bot and show main menu"),
-        BotCommand("help", "Show help information"),
-        BotCommand("cancel", "Cancel current operation")
-    ]
-    loop.run_until_complete(application.bot.set_my_commands(commands))
-    logger.info("Bot commands menu registered successfully")
-    try:
-        loop.run_until_complete(application.bot.get_me())
-        logger.info("Bot HTTP client warmed up successfully")
-    except Exception as e:
-        logger.warning(f"Could not warm up bot HTTP client: {e}")
-    loop.close()
-    _initialized = True
-    logger.info("Application and bot pre-initialized successfully")
-except Exception as e:
-    logger.warning(f"Could not pre-initialize application: {e}")
-    _initialized = False
-
-class handler(BaseHTTPRequestHandler):
-    def do_POST(self):
-        """Handle POST requests from Telegram webhook"""
-        try:
-            logger.info("[v0] Webhook POST request received")
-            
-            # Read request body
-            content_length = int(self.headers.get('Content-Length', 0))
-            body = self.rfile.read(content_length)
-            logger.info(f"[v0] Request body length: {content_length}")
-            
-            # Parse JSON update from Telegram
-            update_dict = json.loads(body.decode('utf-8'))
-            logger.info(f"[v0] Parsed update: {update_dict}")
-            
-            update_id = update_dict.get('update_id')
-            if update_id and update_id in _processing_updates:
-                logger.warning(f"Duplicate update {update_id} detected, skipping")
-                self.send_response(200)
-                self.send_header('Content-Type', 'application/json')
-                self.end_headers()
-                response = json.dumps({'ok': True, 'skipped': 'duplicate'})
-                self.wfile.write(response.encode('utf-8'))
-                return
-            
-            if update_id:
-                _processing_updates.add(update_id)
-            
-            logger.info(f"[v0] Processing update {update_id}")
-            
-            # Create Update object and process
-            update = Update.de_json(update_dict, application.bot)
-            
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            try:
-                if not _initialized:
-                    loop.run_until_complete(ensure_initialized())
-                loop.run_until_complete(application.process_update(update))
-                logger.info("[v0] Update processed successfully")
-                
-                pending = asyncio.all_tasks(loop)
-                if pending:
-                    logger.info(f"[v0] Waiting for {len(pending)} pending tasks to complete")
-                    loop.run_until_complete(asyncio.gather(*pending, return_exceptions=True))
-                    logger.info("[v0] All pending tasks completed")
-            finally:
-                loop.close()
-                if update_id:
-                    asyncio.create_task(_cleanup_update_id(update_id))
-            
-            # Send success response
-            self.send_response(200)
-            self.send_header('Content-Type', 'application/json')
-            self.end_headers()
-            response = json.dumps({'ok': True})
-            self.wfile.write(response.encode('utf-8'))
-            
-        except Exception as e:
-            logger.error(f"[v0] Error processing webhook: {e}")
-            import traceback
-            traceback.print_exc()
-            self.send_response(500)
-            self.send_header('Content-Type', 'application/json')
-            self.end_headers()
-            response = json.dumps({'ok': False, 'error': str(e)})
-            self.wfile.write(response.encode('utf-8'))
-    
-    def do_GET(self):
-        """Handle GET requests for health check"""
-        logger.info("[v0] Health check GET request received")
-        self.send_response(200)
-        self.send_header('Content-Type', 'text/plain')
-        self.end_headers()
-        self.wfile.write(b'MetaDAO Bot is running!')
-
-async def _cleanup_update_id(update_id: int):
-    """Remove update ID from tracking after 30 seconds"""
-    await asyncio.sleep(30)
-    _processing_updates.discard(update_id)
-    logger.info(f"Cleaned up update ID: {update_id}")
