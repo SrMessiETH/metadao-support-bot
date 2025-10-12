@@ -50,6 +50,7 @@ RESOURCE_LINKS = {
     'proposal': 'https://docs.metadao.fi/governance/proposals',
     'calendar': 'https://www.idontbelieve.link',
     'website': 'https://metadao.fi',
+    'umbra': 'https://metadao.fi/projects/umbra/fundraise',
     'avici': 'https://www.idontbelieve.link/?p=27eeb88879cf81a5b421cee972236ed6&pm=c',
     'paystream': 'https://www.idontbelieve.link/?p=27eeb88879cf81bb9374eb8a1009d4ff&pm=c',
     'loyal': 'https://www.idontbelieve.link/?p=27eeb88879cf81339324e7f98d8dbd9f&pm=c',
@@ -62,6 +63,13 @@ RESOURCE_LINKS = {
 PROJECT_INFO = {
     'meta': {
         'ca': 'METAwkXcqyXKy1AtsSgJ8JiUHwGCafnZL38n3vYmeta'
+    },
+    'umbra': {
+        'ca': 'TBA (Token not yet launched - check after ICO completion)',
+        'max_supply': '28.5 million tokens',
+        'min_target': '$750K',
+        'max_target': 'Is blind and will reveal when ICO ends',
+        'tokenomics': 'https://x.com/UmbraPrivacy/status/1973785682872062014'
     }
 }
 META_CA = 'METAwkXcqyXKy1AtsSgJ8JiUHwGCafnZL38n3vYmeta'
@@ -142,6 +150,51 @@ async def start_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     # Remove any reply keyboard
     await update.message.reply_text(".", reply_markup=ReplyKeyboardRemove())
     await context.bot.delete_message(chat_id=update.effective_chat.id, message_id=update.message.message_id + 1)
+
+# Help command handler
+async def help_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    if update.effective_chat.type != 'private':
+        return
+    help_text = (
+        "🤖 *MetaDAO Support Bot Help*\n\n"
+        "*Available Commands:*\n"
+        "/start - Start the bot and show main menu\n"
+        "/help - Show this help message\n"
+        "/cancel - Cancel current operation\n\n"
+        "*How to use:*\n"
+        "• Use the inline menu buttons to navigate\n"
+        "• Select 'Support Request' to submit a question\n"
+        "• Type 'ca' to get the META token contract address\n\n"
+        "*Resources:*\n"
+        "📚 Documentation: https://docs.metadao.fi/\n"
+        "🌐 Website: https://metadao.fi"
+    )
+    await update.message.reply_text(
+        help_text,
+        parse_mode='Markdown',
+        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Main Menu", callback_data='main_menu')]]),
+        disable_web_page_preview=True
+    )
+
+# Cancel command handler
+async def cancel_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    if update.effective_chat.type != 'private':
+        return ConversationHandler.END
+    
+    # Clear any active support request
+    if context.user_data.get('support_active'):
+        context.user_data.clear()
+        await update.message.reply_text(
+            "Support request cancelled.",
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Main Menu", callback_data='main_menu')]])
+        )
+        return ConversationHandler.END
+    else:
+        await update.message.reply_text(
+            "No active operation to cancel.",
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Main Menu", callback_data='main_menu')]])
+        )
+        return ConversationHandler.END
 
 # Callback query handler
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -312,10 +365,13 @@ conv_handler = ConversationHandler(
         EMAIL: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_email)],
         QUESTION: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_question)],
     },
-    fallbacks=[],
+    fallbacks=[CommandHandler('cancel', cancel_handler)],  # Added cancel to conversation fallbacks
 )
 
 # Add handlers
+application.add_handler(CommandHandler('start', start_handler))  # Added explicit start command handler
+application.add_handler(CommandHandler('help', help_handler))  # Added help command handler
+application.add_handler(CommandHandler('cancel', cancel_handler))  # Added cancel command handler
 application.add_handler(CallbackQueryHandler(button_handler))
 application.add_handler(MessageHandler(filters.Regex(r'^(CA|ca|Ca)$'), handle_ca))
 application.add_handler(conv_handler)
@@ -330,6 +386,14 @@ async def ensure_initialized():
     if not _initialized:
         await application.initialize()
         await application.bot.initialize()
+        from telegram import BotCommand
+        commands = [
+            BotCommand("start", "Start the bot and show main menu"),
+            BotCommand("help", "Show help information"),
+            BotCommand("cancel", "Cancel current operation")
+        ]
+        await application.bot.set_my_commands(commands)
+        logger.info("Bot commands menu set successfully")
         _initialized = True
 
 try:
@@ -337,6 +401,14 @@ try:
     asyncio.set_event_loop(loop)
     loop.run_until_complete(application.initialize())
     loop.run_until_complete(application.bot.initialize())
+    from telegram import BotCommand
+    commands = [
+        BotCommand("start", "Start the bot and show main menu"),
+        BotCommand("help", "Show help information"),
+        BotCommand("cancel", "Cancel current operation")
+    ]
+    loop.run_until_complete(application.bot.set_my_commands(commands))
+    logger.info("Bot commands menu registered successfully")
     try:
         loop.run_until_complete(application.bot.get_me())
         logger.info("Bot HTTP client warmed up successfully")
