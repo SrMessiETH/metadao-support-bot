@@ -688,90 +688,110 @@ class handler(BaseHTTPRequestHandler):
         response = json.dumps({'ok': True})
         self.wfile.write(response.encode('utf-8'))
 
-    def do_POST(self):
-        """Handle POST requests from Telegram webhook"""
-        update_id = None
-        new_request = None
-        try:
-            logger.info("[v0] Webhook POST request received")
-            
-            # Read request body
-            content_length = int(self.headers.get('Content-Length', 0))
-            body = self.rfile.read(content_length)
-            logger.info(f"[v0] Request body length: {content_length}")
-            
-            # Parse JSON update from Telegram
-            update_dict = json.loads(body.decode('utf-8'))
-            logger.info(f"[v0] Parsed update: {update_dict}")
-            
-            update_id = update_dict.get('update_id')
-            if update_id and update_id in _processing_updates:
-                logger.warning(f"Duplicate update {update_id} detected, skipping")
-                return  # Will hit finally
-            
-            if update_id:
-                _processing_updates.add(update_id)
-            
-            logger.info(f"[v0] Processing update {update_id}")
-            
-            # Create Update object
-            update = Update.de_json(update_dict, application.bot)
-            
-            # Recreate request client for this invocation to avoid loop issues
-            new_request = HTTPXRequest()
-            application.bot.request = new_request
-            
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            inner_loop_closed = False
+def do_POST(self):
+    """Handle POST requests from Telegram webhook"""
+    update_id = None
+    new_request = None
+    try:
+        logger.info("[v0] Webhook POST request received")
+        
+        # Read request body
+        content_length = int(self.headers.get('Content-Length', 0))
+        body = self.rfile.read(content_length)
+        logger.info(f"[v0] Request body length: {content_length}")
+        
+        # Parse JSON update from Telegram
+        update_dict = json.loads(body.decode('utf-8'))
+        logger.info(f"[v0] Parsed update: {update_dict}")
+        
+        update_id = update_dict.get('update_id')
+        if update_id and update_id in _processing_updates:
+            logger.warning(f"Duplicate update {update_id} detected, skipping")
+            return  # Will hit finally
+        
+        if update_id:
+            _processing_updates.add(update_id)
+        
+        logger.info(f"[v0] Processing update {update_id}")
+        
+        # Create Update object
+        update = Update.de_json(update_dict, application.bot)
+        
+        # Recreate request client for this invocation to avoid loop issues
+        new_request = HTTPXRequest()
+        # Fix: Set the internal _request instead of the read-only property
+        if not hasattr(application.bot, '_request') or application.bot._request is None:
+            application.bot._request = new_request
+        else:
+            # If already set, close the old one first (if possible)
             try:
-                # Ensure initialization
-                loop.run_until_complete(ensure_initialized())
-                
-                # Process the update
-                loop.run_until_complete(application.process_update(update))
-                logger.info("[v0] Update processed successfully")
-                
-                # Wait for ALL pending tasks to complete (including query.answer())
-                pending = asyncio.all_tasks(loop)
-                if pending:
-                    logger.info(f"[v0] Waiting for {len(pending)} pending tasks to complete")
-                    loop.run_until_complete(asyncio.gather(*pending, return_exceptions=True))
-                    logger.info("[v0] All pending tasks completed")
-                
-                # Schedule cleanup for later (in a separate loop)
-                if update_id:
-                    cleanup_loop = asyncio.new_event_loop()
-                    cleanup_task = cleanup_loop.create_task(_cleanup_update_id(update_id))
-                    _update_cleanup_tasks[update_id] = (cleanup_loop, cleanup_task)
-                
-                inner_loop_closed = True
-            finally:
-                # Close the request client
-                if new_request and hasattr(new_request, '_client') and new_request._client:
-                    try:
-                        loop.run_until_complete(new_request._client.aclose())
-                        logger.info("Request client closed successfully")
-                    except Exception as close_e:
-                        logger.warning(f"Failed to close request client: {close_e}")
-                
-                # Close the loop only after everything is done
-                if not inner_loop_closed:
-                    logger.warning("Inner loop not closed properly, forcing close")
-                loop.close()
-                
-        except Exception as e:
-            logger.error(f"[v0] Error processing webhook: {e}")
-            import traceback
-            traceback.print_exc()
+                if application.bot._request._client:
+                    # Note: This assumes async context; we'll handle full close later
+                    pass
+            except:
+                pass
+            application.bot._request = new_request
+        
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        inner_loop_closed = False
+        try:
+            # Ensure initialization
+            loop.run_until_complete(ensure_initialized())
             
-            # Remove from processing set on error
-            if update_id and update_id in _processing_updates:
-                _processing_updates.discard(update_id)
+            # Process the update
+            loop.run_until_complete(application.process_update(update))
+            logger.info("[v0] Update processed successfully")
+            
+            # Wait for ALL pending tasks to complete (including query.answer())
+            pending = asyncio.all_tasks(loop)
+            if pending:
+                logger.info(f"[v0] Waiting for {len(pending)} pending tasks to complete")
+                loop.run_until_complete(asyncio.gather(*pending, return_exceptions=True))
+                logger.info("[v0] All pending tasks completed")
+            
+            # Schedule cleanup for later (in a separate loop)
+            if update_id:
+                cleanup_loop = asyncio.new_event_loop()
+                cleanup_task = cleanup_loop.create_task(_cleanup_update_id(update_id))
+                _update_cleanup_tasks[update_id] = (cleanup_loop, cleanup_task)
+            
+            inner_loop_closed = True
         finally:
-            if new_request:
-                application.bot.request = None  # Reset to avoid stale reference
-            self.send_success_response()
+            # Close the request client
+            if new_request and hasattr(new_request, '_client') and new_request._client:
+                try:
+                    loop.run_until_complete(new_request._client.aclose())
+                    logger.info("Request client closed successfully")
+                except Exception as close_e:
+                    logger.warning(f"Failed to close request client: {close_e}")
+            
+            # Close the loop only after everything is done
+            if not inner_loop_closed:
+                logger.warning("Inner loop not closed properly, forcing close")
+            loop.close()
+            
+    except Exception as e:
+        logger.error(f"[v0] Error processing webhook: {e}")
+        import traceback
+        traceback.print_exc()
+        
+        # Remove from processing set on error
+        if update_id and update_id in _processing_updates:
+            _processing_updates.discard(update_id)
+    finally:
+        if new_request:
+            # Reset to original/default if needed, but usually not necessary
+            pass
+        # Clean up any lingering task refs
+        if update_id in _update_cleanup_tasks:
+            cleanup_loop, cleanup_task = _update_cleanup_tasks.pop(update_id)
+            try:
+                cleanup_loop.run_until_complete(cleanup_task)
+            except:
+                pass
+            cleanup_loop.close()
+        self.send_success_response()
 
     def do_GET(self):
         """Handle GET requests for health check"""
