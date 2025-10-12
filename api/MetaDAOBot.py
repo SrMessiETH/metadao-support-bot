@@ -116,8 +116,16 @@ def get_sheets_client(sheet_name='Support Requests'):
             sheet = spreadsheet.worksheet(sheet_name)
         except gspread.exceptions.WorksheetNotFound:
             logger.info(f"Sheet '{sheet_name}' not found, creating it...")
-            sheet = spreadsheet.add_worksheet(title=sheet_name, rows=1000, cols=20)
-            logger.info(f"Created sheet '{sheet_name}' for vertical data format")
+            sheet = spreadsheet.add_worksheet(title=sheet_name, rows=1000, cols=50)
+            
+            if sheet_name == 'Support Requests':
+                # Horizontal layout with headers
+                headers = ['Timestamp', 'Name', 'Email', 'Question', 'Category']
+                sheet.append_row(headers)
+                logger.info(f"Created sheet '{sheet_name}' with horizontal layout")
+            else:
+                # Vertical layout - no initial headers needed
+                logger.info(f"Created sheet '{sheet_name}' with vertical layout")
         
         return sheet
     except Exception as e:
@@ -132,44 +140,63 @@ def log_request(name, email, question, category, extra_data=None):
     if sheet:
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         
-        # Prepare rows to append vertically
-        rows = []
-        
-        if extra_data:
-            # For get listed submissions with detailed data
-            rows.append(['Timestamp', timestamp])
-            rows.append(['Project Name', name])
-            rows.append(['Contact', email])
-            rows.append(['Category', category])
-            rows.append(['Project Name Short', extra_data.get('project_name_short', '')])
-            rows.append(['Project Description', extra_data.get('project_desc_long', '')])
-            rows.append(['Token Name', extra_data.get('token_name', '')])
-            rows.append(['Token Ticker', extra_data.get('token_ticker', '')])
-            rows.append(['Project Image', extra_data.get('project_image', '')])
-            rows.append(['Token Image', extra_data.get('token_image', '')])
-            rows.append(['Min Raise', extra_data.get('min_raise', '')])
-            rows.append(['Monthly Budget', extra_data.get('monthly_budget', '')])
-            rows.append(['Performance Package', extra_data.get('performance_package', '')])
-            rows.append(['Performance Unlock Time', extra_data.get('performance_unlock_time', '')])
-            rows.append(['Intellectual Property', extra_data.get('intellectual_property', '')])
+        if category == 'Support Requests':
+            # Horizontal layout - append one row
+            row = [timestamp, name, email, question, category]
+            sheet.append_row(row)
+            logger.info(f"Request logged horizontally to '{sheet_name}' sheet: {name}, {email}, {category}")
         else:
-            # For simple support requests
-            rows.append(['Timestamp', timestamp])
-            rows.append(['Name', name])
-            rows.append(['Email', email])
-            rows.append(['Question', question])
-            rows.append(['Category', category])
-        
-        # Add a blank row as separator between submissions
-        rows.append(['', ''])
-        
-        # Append all rows at once
-        sheet.append_rows(rows)
-        logger.info(f"Request logged vertically to '{sheet_name}' sheet: {name}, {email}, {category}")
+            # Vertical layout for Get Listed - append to next available column
+            # Get all values to find the next empty column
+            all_values = sheet.get_all_values()
+            
+            # Find the next empty column (columns come in pairs: field name, value)
+            next_col = 1  # Start at column A
+            if all_values and len(all_values) > 0:
+                # Find the first row and check how many columns are filled
+                first_row = all_values[0]
+                # Count non-empty cells to find next available column
+                filled_cols = len([cell for cell in first_row if cell.strip()])
+                next_col = filled_cols + 1
+            
+            # Prepare data to write vertically
+            if extra_data:
+                fields = [
+                    ('Timestamp', timestamp),
+                    ('Project Name', name),
+                    ('Contact', email),
+                    ('Category', category),
+                    ('Project Name Short', extra_data.get('project_name_short', '')),
+                    ('Project Description', extra_data.get('project_desc_long', '')),
+                    ('Token Name', extra_data.get('token_name', '')),
+                    ('Token Ticker', extra_data.get('token_ticker', '')),
+                    ('Project Image', extra_data.get('project_image', '')),
+                    ('Token Image', extra_data.get('token_image', '')),
+                    ('Min Raise', extra_data.get('min_raise', '')),
+                    ('Monthly Budget', extra_data.get('monthly_budget', '')),
+                    ('Performance Package', extra_data.get('performance_package', '')),
+                    ('Performance Unlock Time', extra_data.get('performance_unlock_time', '')),
+                    ('Intellectual Property', extra_data.get('intellectual_property', ''))
+                ]
+            else:
+                fields = [
+                    ('Timestamp', timestamp),
+                    ('Name', name),
+                    ('Email', email),
+                    ('Question', question),
+                    ('Category', category)
+                ]
+            
+            # Write field names in column next_col and values in column next_col+1
+            for row_idx, (field_name, field_value) in enumerate(fields, start=1):
+                # Update cell by cell in the next available column pair
+                sheet.update_cell(row_idx, next_col, field_name)
+                sheet.update_cell(row_idx, next_col + 1, field_value)
+            
+            logger.info(f"Request logged vertically to '{sheet_name}' sheet in columns {next_col}-{next_col+1}: {name}, {category}")
     else:
         logger.warning("Could not log to Google Sheets - client not available")
 
-# Function to forward to support chat
 async def forward_to_support(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if SUPPORT_CHAT_ID:
         user = update.effective_user
@@ -185,7 +212,6 @@ async def forward_to_support(update: Update, context: ContextTypes.DEFAULT_TYPE)
         )
         await context.bot.send_message(chat_id=SUPPORT_CHAT_ID, text=message_text)
 
-# Start message handler
 async def start_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if update.effective_chat.type != 'private':
         return
@@ -211,7 +237,6 @@ async def start_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         disable_web_page_preview=True
     )
 
-# Help command handler
 async def help_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if update.effective_chat.type != 'private':
         return
@@ -240,7 +265,6 @@ async def help_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         disable_web_page_preview=True
     )
 
-# Cancel command handler
 async def cancel_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     if update.effective_chat.type != 'private':
         return ConversationHandler.END
@@ -261,7 +285,6 @@ async def cancel_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         )
         return ConversationHandler.END
 
-# Callback query handler
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if update.effective_chat.type != 'private':
         await update.callback_query.answer()
@@ -325,7 +348,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         )
         return
 
-# Support start handler
 async def support_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     query = update.callback_query
     await query.answer()
@@ -390,7 +412,6 @@ async def get_question(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
     context.user_data['support_active'] = False
     return ConversationHandler.END
 
-# Get listed conversation handlers
 async def get_listed_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     query = update.callback_query
     await query.answer()
@@ -635,7 +656,6 @@ async def get_listed_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) 
         return ConversationHandler.END
     return ConversationHandler.END
 
-# CA command handler - works in all chat types
 async def ca_command_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await update.message.reply_text(
         "🪙 *META Contract Address*\n\n"
@@ -644,7 +664,6 @@ async def ca_command_handler(update: Update, context: ContextTypes.DEFAULT_TYPE)
         parse_mode='Markdown'
     )
 
-# Web command handler - works in all chat types
 async def web_command_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await update.message.reply_text(
         "🌐 *MetaDAO Website*\n\n"
@@ -654,7 +673,6 @@ async def web_command_handler(update: Update, context: ContextTypes.DEFAULT_TYPE
         disable_web_page_preview=True
     )
 
-# Docs command handler - works in all chat types
 async def docs_command_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await update.message.reply_text(
         "📚 *MetaDAO Documentation*\n\n"
@@ -664,7 +682,6 @@ async def docs_command_handler(update: Update, context: ContextTypes.DEFAULT_TYP
         disable_web_page_preview=True
     )
 
-# ICOs command handler - works in all chat types
 async def icos_command_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await update.message.reply_text(
         "📅 *MetaDAO Calendar & ICOs*\n\n"
@@ -674,7 +691,6 @@ async def icos_command_handler(update: Update, context: ContextTypes.DEFAULT_TYP
         disable_web_page_preview=True
     )
 
-# CA handler
 async def handle_ca(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if update.effective_chat.type == 'private':
         return
@@ -686,7 +702,6 @@ async def handle_ca(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             reply_markup=ReplyKeyboardRemove()
         )
 
-# Text handler (placeholder)
 async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     pass
 
