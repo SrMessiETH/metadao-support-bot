@@ -621,15 +621,17 @@ class handler(BaseHTTPRequestHandler):
                 loop.run_until_complete(application.process_update(update))
                 logger.info("Update processed successfully")
                 
-                for attempt in range(3):
+                for attempt in range(5):
                     pending = asyncio.all_tasks(loop)
                     if pending:
                         logger.info(f"Attempt {attempt + 1}: Waiting for {len(pending)} pending tasks")
                         loop.run_until_complete(asyncio.gather(*pending, return_exceptions=True))
-                    # Small delay to allow any final operations to complete
-                    loop.run_until_complete(asyncio.sleep(0.1))
+                    # Longer delay to allow HTTP client cleanup to complete
+                    loop.run_until_complete(asyncio.sleep(0.3))
                 
                 logger.info("All pending tasks completed")
+                
+                loop.run_until_complete(asyncio.sleep(0.5))
                 
                 # Schedule cleanup for later
                 if update_id:
@@ -645,6 +647,8 @@ class handler(BaseHTTPRequestHandler):
                         task.cancel()
                     if pending:
                         loop.run_until_complete(asyncio.gather(*pending, return_exceptions=True))
+                    
+                    loop.run_until_complete(asyncio.sleep(0.2))
                 finally:
                     loop.close()
                 
