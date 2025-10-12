@@ -317,15 +317,17 @@ async def ensure_initialized():
     global _initialized
     if not _initialized:
         await application.initialize()
+        await application.bot.initialize()
         _initialized = True
 
 try:
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     loop.run_until_complete(application.initialize())
+    loop.run_until_complete(application.bot.initialize())
     loop.close()
     _initialized = True
-    logger.info("Application pre-initialized successfully")
+    logger.info("Application and bot pre-initialized successfully")
 except Exception as e:
     logger.warning(f"Could not pre-initialize application: {e}")
     _initialized = False
@@ -355,12 +357,13 @@ class handler(BaseHTTPRequestHandler):
                     loop.run_until_complete(ensure_initialized())
                 loop.run_until_complete(application.process_update(update))
                 logger.info("[v0] Update processed successfully")
-            finally:
-                # Give pending tasks time to complete before closing
+                
                 pending = asyncio.all_tasks(loop)
-                for task in pending:
-                    task.cancel()
-                loop.run_until_complete(asyncio.gather(*pending, return_exceptions=True))
+                if pending:
+                    logger.info(f"[v0] Waiting for {len(pending)} pending tasks to complete")
+                    loop.run_until_complete(asyncio.gather(*pending, return_exceptions=True))
+                    logger.info("[v0] All pending tasks completed")
+            finally:
                 loop.close()
             
             # Send success response
