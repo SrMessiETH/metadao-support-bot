@@ -658,6 +658,13 @@ async def _cleanup_update_id(update_id: int):
     logger.info(f"Cleaned up update ID: {update_id}")
 
 class handler(BaseHTTPRequestHandler):
+    def send_success_response(self):
+        self.send_response(200)
+        self.send_header('Content-Type', 'application/json')
+        self.end_headers()
+        response = json.dumps({'ok': True})
+        self.wfile.write(response.encode('utf-8'))
+
     def do_POST(self):
         """Handle POST requests from Telegram webhook"""
         update_id = None
@@ -676,7 +683,7 @@ class handler(BaseHTTPRequestHandler):
             update_id = update_dict.get('update_id')
             if update_id and update_id in _processing_updates:
                 logger.warning(f"Duplicate update {update_id} detected, skipping")
-                return  # Fall through to finally for 200
+                return  # Will hit finally
             
             if update_id:
                 _processing_updates.add(update_id)
@@ -688,6 +695,7 @@ class handler(BaseHTTPRequestHandler):
             
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
+            inner_loop_closed = False
             try:
                 # Ensure initialization
                 if not _initialized:
@@ -709,13 +717,14 @@ class handler(BaseHTTPRequestHandler):
                     cleanup_loop = asyncio.new_event_loop()
                     cleanup_task = cleanup_loop.create_task(_cleanup_update_id(update_id))
                     _update_cleanup_tasks[update_id] = (cleanup_loop, cleanup_task)
-                    
+                
+                inner_loop_closed = True
             finally:
                 # Close the loop only after everything is done
+                if not inner_loop_closed:
+                    logger.warning("Inner loop not closed properly, forcing close")
                 loop.close()
-            
-            # Fall through to success response below
-            
+                
         except Exception as e:
             logger.error(f"[v0] Error processing webhook: {e}")
             import traceback
@@ -724,26 +733,9 @@ class handler(BaseHTTPRequestHandler):
             # Remove from processing set on error
             if update_id and update_id in _processing_updates:
                 _processing_updates.discard(update_id)
-            
-            # Fall through to success response—always acknowledge to Telegram
-    
-    # Always send 200 in finally
-    def send_success_response(self):
-        self.send_response(200)
-        self.send_header('Content-Type', 'application/json')
-        self.end_headers()
-        response = json.dumps({'ok': True})
-        self.wfile.write(response.encode('utf-8'))
-    
-    def do_POST(self):
-        # ... (the try block above)
-        try:
-            # ... all the code in try ...
-        except Exception as e:
-            # ... error handling ...
         finally:
             self.send_success_response()
-    
+
     def do_GET(self):
         """Handle GET requests for health check"""
         logger.info("[v0] Health check GET request received")
