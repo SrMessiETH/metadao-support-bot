@@ -718,27 +718,27 @@ async def get_listed_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) 
 
 async def ca_command_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await update.message.reply_text(
-        f"`{META_CA}`\n\n"
+        f"`{META_CA}`\n\n",
         parse_mode='Markdown'
     )
 
 async def web_command_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await update.message.reply_text(
-        f"{RESOURCE_LINKS['website']}\n\n"
+        f"{RESOURCE_LINKS['website']}\n\n",
         parse_mode='Markdown',
         disable_web_page_preview=True
     )
 
 async def docs_command_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await update.message.reply_text(
-        f"{RESOURCE_LINKS['docs']}\n\n"
+        f"{RESOURCE_LINKS['docs']}\n\n",
         parse_mode='Markdown',
         disable_web_page_preview=True
     )
 
 async def icos_command_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await update.message.reply_text(
-        f"{RESOURCE_LINKS['icos']}\n\n"
+        f"{RESOURCE_LINKS['icos']}\n\n",
         parse_mode='Markdown',
         disable_web_page_preview=True
     )
