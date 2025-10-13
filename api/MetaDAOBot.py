@@ -343,12 +343,12 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     if data in category_map:
         title, description = category_map[data]
         link = RESOURCE_LINKS[data]
-        await query.edit_message_text(
-            text=f"*{title}*\n\n{description}\n\n🔗 [Learn More]({link})",
-            parse_mode='Markdown',
-            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("⬅️ Back to Main Menu", callback_data='main_menu')]]),
-            disable_web_page_preview=True
-        )
+    await query.edit_message_text(
+        text=f"*{title}*\n\n{description}\n\n🔗 {link}",
+        parse_mode='Markdown',
+        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("⬅️ Back to Main Menu", callback_data='main_menu')]]),
+        disable_web_page_preview=True
+    )
         return
 
 async def support_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
