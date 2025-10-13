@@ -73,6 +73,7 @@ RESOURCE_LINKS = {
     'aurum': 'https://www.idontbelieve.link/?p=285eb88879cf808e83d3f2ea73b00647&pm=c',
     'redeem_mtn': 'https://v1.metadao.fi/mtncapital/redeem',
     'redeem_meta': 'https://v1.metadao.fi/migration',
+    'amm': 'https://dune.com/jacktheguy/futarchy-amm-metrics'
 }
 
 # Known project info
@@ -241,7 +242,7 @@ FAQ_DATABASE = {
     "value_beyond_speculation": {
         "question": "What is the value behind the token beyond speculation?",
         "answer": "You all could raise a proposal to say pay us dividens or buy back or burn or…. The bigger thing here is that MetaDAO with its new AMM will be post revenue.",
-        "related_links": []
+         "related_links": [RESOURCE_LINKS['amm']]
     },
     "kyc_icos": {
         "question": "Need KYC for joining ICOs?",
@@ -256,7 +257,7 @@ FAQ_DATABASE = {
     "meta_holders_benefit": {
         "question": "Does $META holders benefit from ICOs like early access?",
         "answer": "NO. MetaDAO accrues fees from the AMM we’ve built which the token of the ICO goes into.",
-        "related_links": []
+         "related_links": [RESOURCE_LINKS['amm']]
     },
     "prevent_other_amm": {
         "question": "Does it prevent any other AMM or MMs from participating in making markets?",
@@ -266,7 +267,7 @@ FAQ_DATABASE = {
     "amm_only_metadao": {
         "question": "Will MetaDAO’s AMM only be activated for MetaDAO projects?",
         "answer": "No, it is core to the use of the protocol now. So you have to put funds into the AMM ro tun the proposal",
-        "related_links": []
+         "related_links": [RESOURCE_LINKS['amm']]
     },
     "meta_liquidity_pool": {
         "question": "What is the address of the main liquidity pool for $META?",
