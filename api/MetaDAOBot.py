@@ -172,22 +172,22 @@ FAQ_DATABASE = {
     "interact_ecosystem": {
         "question": "How to interact with the MetaDAO ecosystem?",
         "answer": "MetaDAO enables interaction primarily through trading conditional markets on project proposals, allowing you to bet on outcomes (pass/fail) and hedge/grow your portfolio.Key Steps:\n1. Monitor Proposals: Watch for proposals that gain enough stake, moving half the project's liquidity (e.g., from META/USDC spot) into pass and fail conditional markets for 3 days.\n2. Trade Conditionally: Buy/sell tokens in these markets like normal trades, but they revert if the proposal doesn't pass as expected.\n    ◦ Example (ORE Proposal): If you believe ORE hits $30 on passing (vs. $19 current), buy ORE in the pass market (e.g., $1,000 for 50 ORE at $20). On pass: You own them. On fail: Trade voids—no loss.\n3. Portfolio Strategies:\n    ◦ Bad Proposal (e.g., EXMPL founder siphons funds): Sell pass (overvalued if token tanks to $0) and buy fail (undervalued at ~11% profit potential on liquidation).\n    ◦ Good Proposal (e.g., XYZ adds revenue): Buy pass if undervalued (e.g., $110M vs. $150M fair value); sell if overvalued. Hedge by trading fail around fair value.Proposal Finalization:Outcomes use lagging TWAPs (time-weighted average prices) over the period to prevent manipulation—observations lag (e.g., max $5/min change from $500 baseline). Pass requires TWAP ≥1.5% above fail threshold by default.Trade via supported DEXs; start small to learn conditional reversion.",
-        "related_links": []
+        "related_links": [RESOURCE_LINKS['icos'], RESOURCE_LINKS['investors']]
     },
     "create_proposal_cost": {
         "question": "How much cost to make a proposal? Anyone can do it?",
         "answer": "Creating Proposals\nAnyone can create a proposal to a project. Proposals can:\n• Spend USDC from the treasury\n• Issue new tokens\n• Update token metadata\n• Increase or decrease the liquidity provided by the project’s treasuryOnce a proposal is created, holders must stake tokens on it for it to go live. By default, a proposal requires 50,000 tokens (5% of the ICO) staked on it for it to go live.Staking is purely to prevent spam and doesn’t have lockups or risk of slashing.There can only be one proposal live at once",
-        "related_links": []
+        "related_links": [RESOURCE_LINKS['proposals_create']]
     },
     "participate_icos": {
         "question": "How to participate on ICOS?",
         "answer": "MetaDAO ICOs protect investors from rugs via mechanistic (treasury) and legal (revenue) safeguards, letting you buy tokens with reduced risk.Key Protections:\n1. Mechanistic Treasury Protection:\n    ◦ All raised funds enter a market-governed treasury—no team control.\n    ◦ If rugged (team walks) or token price < book value, anyone can propose returning capital to holders.\n    ◦ Past Solana ICO Risks Avoided: Parrot ($85M raised, $72M rugged); UXD ($57M, $46M insiders took); Mango ($70M, founders suing over theft); Aurory ($108M, token -99.5%, funds vanished).\n2. Legal Revenue Protection:\n    ◦ Launch creates a legal entity for tokenholders.\n    ◦ Sue teams for revenue misappropriation or force IP transfer (e.g., domains/socials) to a new team.\n    ◦ Examples: Uniswap ($30M frontend fees to Labs, not holders); Unibot/Trojan ($206M fees kept by team).How to Participate:\n• Buy Tokens at Launch: Trade on MetaDAO's spot markets (e.g., NEW/USDC) during ICO—funds auto-secure in treasury.\n• Monitor & Vote: Stake/track proposals; use conditional markets to hedge (as in prior guides).\n• Start Small: Review project treasury/book value; exit via proposals if risks emerge.",
-        "related_links": []
+        "related_links": [RESOURCE_LINKS['icos'], RESOURCE_LINKS['investors']]
     },
     "futarchy_works": {
         "question": "How Futarchy works?",
         "answer": "Replacing token voting with market trading to make smarter, less manipulable decisions. Since November 2023, MetaDAO has run 96 proposals for 14 organizations, including Jito’s fee switch, Flash’s revenue-sharing for stakers, and all of Sanctum’s governance.Core Mechanism (TL;DR)\n• Trade Outcome Markets: For each proposal, traders buy/sell in two conditional markets: \"Token value if proposal passes\" vs. \"Token value if proposal fails.\"\n• Decide by Market Wisdom: Accept the proposal if the pass market prices higher (traders predict value increase); reject if fail prices higher (value decrease).\n• Invented by economist Robin Hanson, it lets markets aggregate info efficiently—no quorums or whale dominance.Why It's Better Than VotingMarkets historically outperform experts:\n• Elections: Prediction markets beat pollsters.\n• Weather: Orange juice futures outpredict government forecasts.\n• Disasters: In the 1986 Challenger explosion, markets pinpointed Morton-Thiokol’s O-rings as the cause in 16 minutes (stock plunged 12% vs. others flat/up), while government took 4 months.Why It MattersFutarchy hardens against rugs: ICO funds in market-governed treasuries can't be easily siphoned, as traders enforce accountability. As Umbra Research notes, it's \"trustless joint ownership.\" Per Kevin Heavey: \"Futarchy is such a radical improvement over majoritarian DAOs... any DAO still [using] token voting... is malicious or incompetent.\" Bind to futarchy for fair, market-driven ownership—or stick to traditional companies without tokens.",
-        "related_links": []
+        "related_links": [RESOURCE_LINKS['futarchy_intro'], RESOURCE_LINKS['proposals_create'], RESOURCE_LINKS['proposals_trade'], RESOURCE_LINKS['proposals_finalize']]
     },
     "nfts_related": {
         "question": "There are NFTs related?",
@@ -197,42 +197,42 @@ FAQ_DATABASE = {
     "what_is_metadao": {
         "question": "What is MetaDAO?",
         "answer": "MetaDAO is for founders who want to launch a token the right way. MetaDAO’s core principles are:\n• Fair launch early: instead of launching at a high FDV, projects launch early with high-float ICOs so that they can grow over time.\n• Real ownership and unruggability: the most important parts of the project - the intellectual property, the funds, and the ability to mint new tokens - are controlled by market-driven governance. This imbues the token with value and prevents malicious teams from rugging the treasury.\n• Pay-for-performance: insiders unlocks are proportional to the premium over the launch price. This keeps teams and participants aligned.While much of crypto concerns itself with how to maximally extract value over the short-term, MetaDAO is built from the ground up for long-term founders and their communities.",
-        "related_links": []
+        "related_links": [RESOURCE_LINKS['website'], RESOURCE_LINKS['docs']]
     },
     "get_listed": {
         "question": "How to get listed on MetaDAO?",
         "answer": "For the moment you need to talk with Proph3t or Kollan until we go permisionless",
-        "related_links": []
+        "related_links": [RESOURCE_LINKS['get_listed'], RESOURCE_LINKS['entrepreneurs']]
     },
     "discretionary_cap": {
         "question": "why discretionary cap?",
         "answer": "Why a discretionary cap? The purpose of the discretionary cap is to allow believers to participate while preventing projects from over-raising.If you look at other launch mechanisms, they all have issues:\n• Capped first-come-first-serve launches can be sniped\n• Capped pro rata launches can be gamed - if you see a sale is 2x oversubscribed, you may put up 2x the USDC, which makes it even more oversubscribed - which leads to poor UX for believers\n• Uncapped sales are more likely to over-raise\n• Dutch auctions are too complicated",
-        "related_links": []
+        "related_links": [RESOURCE_LINKS['icos'], RESOURCE_LINKS['how_launches_work']]
     },
     "sale_successful": {
         "question": "What happens when a sale is successful?",
         "answer": "If a sale is successful, the following happens:\n1. All USDC goes to a market-governed treasury.\n2. The authority to mint new tokens is transferred to the treasury.\n3. That treasury provides 20% of the USDC and 5M tokens to liquidity pools. In effect the project will buy back tokens below the ICO price and sell them above the ICO price.The team can then spend their configured monthly budget out of the treasury. To make larger spends or issue new tokens, they need to raise governance proposals.",
-        "related_links": []
+        "related_links": [RESOURCE_LINKS['icos'], RESOURCE_LINKS['how_launches_work']]
     },
     "sale_fails": {
         "question": "What happens when a sale fails to reach its minimum?",
         "answer": "When a project fails to reach its minimum, everyone is refunded their USDC back.",
-        "related_links": []
+        "related_links": [RESOURCE_LINKS['icos'], RESOURCE_LINKS['how_launches_work']]
     },
     "teams_incentivized": {
         "question": "How are teams incentivized?",
         "answer": "Teams can optionally decide to have up to 15M tokens (50% of initial supply) allocated to a price-based performance package.This package is split into 5 equal tranches: one that unlocks at 2x ICO price, one that unlocks at 4x ICO price, and so on for 8x, 16x, and 32x.The minimum unlock time on these tranches is at least 18 months from ICO date but can be extended by the founder.Teams may also forego this route and instead figure out incentives later, as MetaDAO did.",
-        "related_links": []
+        "related_links": [RESOURCE_LINKS['get_listed'], RESOURCE_LINKS['entrepreneurs']]
     },
     "why_metadao": {
         "question": "Why MetaDAO?",
         "answer": "Why Launch on MetaDAO?MetaDAO is the best for crypto-native businesses seeking sustainable capital without rugs or hype traps—framed by founders as \"a place... that doesn’t suck.\"Vs. Alternatives:\n• Standard VC/Token Path: Extracts from retail; locks teams into bad outcomes (hyped TGEs, vesting).\n• No Token: Solid for equity, but misses crypto alignment.\n• Bonding Curves (Pump/etc.): Low raises ($10k–$100k); no value, snipers, poor hiring.\n• Normal ICOs (Metaplex): Viable with trust/legal work, but rugs scare long-term holders.MetaDAO Perks:\n• Valuable, intrinsic tokens for quality holders.\n• Transparent treasury (no OTC doubts).\n• Early entry, mintable supply, believer community.\n• Minimal legal/smart contract hassle.Trade-offs: Token volatility. But \"if we were launching today, MetaDAO is the place.\" – Proph3t & Kollan House",
-        "related_links": []
+        "related_links": [RESOURCE_LINKS['website'], RESOURCE_LINKS['docs']]
     },
     "meta_token_does": {
         "question": "What the $META token does?",
         "answer": "Meta token is a blank slate. It’s one proposal away from being anything a passing proposal wants it to be.",
-        "related_links": []
+        "related_links": [RESOURCE_LINKS['website'], RESOURCE_LINKS['docs'], RESOURCE_LINKS['amm']]
     },
     "token_gate_icos": {
         "question": "Is there a reaosn why it isn’t being used to token gate ICOs, like $VIRTUAL does for virtual launches?",
@@ -247,12 +247,12 @@ FAQ_DATABASE = {
     "kyc_icos": {
         "question": "Need KYC for joining ICOs?",
         "answer": "No",
-        "related_links": []
+        "related_links": [RESOURCE_LINKS['icos'], RESOURCE_LINKS['how_launches_work']]
     },
     "hold_meta_icos": {
         "question": "Need to hold $META tokens to join ICOs?",
         "answer": "No",
-        "related_links": []
+        "related_links": [RESOURCE_LINKS['icos'], RESOURCE_LINKS['how_launches_work']]
     },
     "meta_holders_benefit": {
         "question": "Does $META holders benefit from ICOs like early access?",
