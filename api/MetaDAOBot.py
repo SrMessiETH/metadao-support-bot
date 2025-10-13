@@ -102,7 +102,7 @@ Key Information:
 How Launches Work:
 - Projects can get listed on MetaDAO to raise funds
 - ICOs are conducted through the platform
-- Investors can participate in token sales
+- Investors can participate on initial token offerings (ICOs)
 - Projects benefit from MetaDAO's infrastructure and community
 
 Futarchy Governance:
@@ -118,7 +118,7 @@ For Entrepreneurs:
 - Performance-based packages available
 
 For Investors:
-- Participate in early-stage token sales
+- Participate in early-stage initial coin offering
 - Access to vetted projects
 - Transparent governance through futarchy
 - Multiple investment opportunities
@@ -140,7 +140,7 @@ FAQ_DATABASE = {
     },
     "ico": {
         "question": "How do ICOs work on MetaDAO?",
-        "answer": "MetaDAO hosts token sales for vetted projects. Projects get listed, set their fundraising goals, and investors can participate in the token sale. The platform provides infrastructure, community access, and transparent governance for all launches.",
+        "answer": "MetaDAO hosts initial coin offerings (ICOs) for vetted projects. Projects get listed, set their fundraising goals, and investors can participate in the token offering. The platform provides infrastructure, community access, and transparent governance for all launches.",
         "related_links": [RESOURCE_LINKS['icos'], RESOURCE_LINKS['how_launches_work']]
     },
     "listing": {
@@ -160,7 +160,7 @@ FAQ_DATABASE = {
     },
     "investing": {
         "question": "How can I invest in projects?",
-        "answer": "Browse the ICO calendar to see upcoming and active token sales. Each project has detailed information about tokenomics, team, and goals. You can participate directly through the platform.",
+        "answer": "Browse the ICO calendar to see upcoming and active ICOs. Each project has detailed information about tokenomics, team, and goals. You can participate directly through the platform.",
         "related_links": [RESOURCE_LINKS['icos'], RESOURCE_LINKS['investors']]
     },
     "redemption": {
@@ -185,7 +185,7 @@ def find_relevant_faq(user_message: str) -> dict:
     # Keyword mapping to FAQ categories
     keyword_map = {
         "futarchy": ["futarchy", "governance", "prediction market", "voting", "decision"],
-        "ico": ["ico", "token sale", "launch", "fundraise", "raise funds"],
+        "ico": ["ico", "sale", "launch", "fundraise", "raise funds"],
         "listing": ["list", "get listed", "apply", "submit project", "launch project"],
         "meta_token": ["meta token", "meta contract", "contract address", "ca", "token address"],
         "proposals": ["proposal", "create proposal", "trade proposal", "twap", "finalize"],
@@ -209,11 +209,11 @@ async def faq_command_handler(update: Update, context: ContextTypes.DEFAULT_TYPE
         "❓ *Frequently Asked Questions*\n\n"
         "*Common Topics:*\n\n"
         "🎯 *Futarchy* - What is futarchy and how does it work?\n"
-        "📅 *ICOs* - How do token sales work on MetaDAO?\n"
+        "📅 *ICOs* - How do initial coin offerings work on MetaDAO?\n"
         "🚀 *Getting Listed* - How to list your project\n"
         "🪙 *META Token* - Information about the META token\n"
         "📊 *Proposals* - Creating and trading proposals\n"
-        "💰 *Investing* - How to participate in token sales\n"
+        "💰 *Investing* - How to participate in ICOs\n"
         "🔄 *Redemption* - Redeeming and migrating tokens\n\n"
         "💡 *Tip:* Just ask me any question in plain English, and I'll help you find the answer!"
     )
@@ -270,11 +270,11 @@ async def show_faq_menu_handler(update: Update, context: ContextTypes.DEFAULT_TY
         "❓ *Frequently Asked Questions*\n\n"
         "*Common Topics:*\n\n"
         "🎯 *Futarchy* - What is futarchy and how does it work?\n"
-        "📅 *ICOs* - How do token sales work on MetaDAO?\n"
+        "📅 *ICOs* - How do ICOs work on MetaDAO?\n"
         "🚀 *Getting Listed* - How to list your project\n"
         "🪙 *META Token* - Information about the META token\n"
         "📊 *Proposals* - Creating and trading proposals\n"
-        "💰 *Investing* - How to participate in token sales\n"
+        "💰 *Investing* - How to participate in ICOs\n"
         "🔄 *Redemption* - Redeeming and migrating tokens\n\n"
         "💡 *Tip:* Just ask me any question in plain English, and I'll help you find the answer!"
     )
