@@ -62,6 +62,7 @@ RESOURCE_LINKS = {
     'zklsol': 'https://www.idontbelieve.link/?p=27eeb88879cf81269d9ece79cba66623&pm=c',
     'evora': 'https://www.idontbelieve.link/?p=283eb88879cf80aaa0b7ed2c1f691d2d&pm=c',
     'aurum': 'https://www.idontbelieve.link/?p=285eb88879cf808e83d3f2ea73b00647&pm=c',
+    'redeem_mtn': 'https://v1.metadao.fi/mtncapital/redeem',
 }
 
 # Known project info
@@ -81,13 +82,10 @@ META_CA = 'METAwkXcqyXKy1AtsSgJ8JiUHwGCafnZL38n3vYmeta'
 
 def main_inline_keyboard():
     keyboard = [
-        [InlineKeyboardButton("🚀 Get Listed", callback_data='get_listed')],
-        [InlineKeyboardButton("📅 ICOs & Calendar", callback_data='icos')],
-        [InlineKeyboardButton("📚 How Launches Work", callback_data='how_launches_work')],
-        [InlineKeyboardButton("🎯 Introduction to Futarchy", callback_data='futarchy_intro')],
-        [InlineKeyboardButton("📊 Proposals", callback_data='proposals')],
-        [InlineKeyboardButton("💼 For Entrepreneurs", callback_data='entrepreneurs')],
-        [InlineKeyboardButton("💰 For Investors", callback_data='investors')],
+        [InlineKeyboardButton("🚀 Get Listed", callback_data='get_listed'), InlineKeyboardButton("📅 ICOs & Calendar", callback_data='icos')],
+        [InlineKeyboardButton("📚 How Launches Work", callback_data='how_launches_work'), InlineKeyboardButton("🎯 Introduction to Futarchy", callback_data='futarchy_intro')],
+        [InlineKeyboardButton("📊 Proposals", callback_data='proposals'), InlineKeyboardButton("💼 For Entrepreneurs", callback_data='entrepreneurs')],
+        [InlineKeyboardButton("💰 For Investors", callback_data='investors'), InlineKeyboardButton("🎁 Redeem $MTN", callback_data='redeem_mtn')],
         [InlineKeyboardButton("💬 Support Request", callback_data='support_request')]
     ]
     return InlineKeyboardMarkup(keyboard)
@@ -340,6 +338,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         'futarchy_intro': ('🎯 Introduction to Futarchy', 'Understand futarchy governance'),
         'entrepreneurs': ('💼 For Entrepreneurs', 'Benefits and resources for project founders'),
         'investors': ('💰 For Investors', 'Investment opportunities and benefits'),
+        'redeem_mtn': ('🎁 Redeem $MTN Tokens', 'Redeem your $MTN tokens'),
     }
     if data in category_map:
         title, description = category_map[data]
@@ -744,6 +743,13 @@ async def icos_command_handler(update: Update, context: ContextTypes.DEFAULT_TYP
         disable_web_page_preview=True
     )
 
+async def redeem_mtn_command_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    await update.message.reply_text(
+        f"{RESOURCE_LINKS['redeem_mtn']}\n\n",
+        parse_mode='Markdown',
+        disable_web_page_preview=True
+    )
+
 async def handle_ca(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if update.effective_chat.type == 'private':
         return
@@ -818,6 +824,7 @@ async def get_application():
         _application.add_handler(CommandHandler('web', web_command_handler))
         _application.add_handler(CommandHandler('docs', docs_command_handler))
         _application.add_handler(CommandHandler('icos', icos_command_handler))
+        _application.add_handler(CommandHandler('redeem_mtn', redeem_mtn_command_handler))
         
         _application.add_handler(get_listed_conv_handler)
         _application.add_handler(conv_handler)
@@ -845,7 +852,8 @@ async def get_application():
             BotCommand("ca", "Get META contract address"),
             BotCommand("web", "Get MetaDAO website link"),
             BotCommand("docs", "Get documentation link"),
-            BotCommand("icos", "Get calendar and ICOs link")
+            BotCommand("icos", "Get calendar and ICOs link"),
+            BotCommand("redeem_mtn", "Redeem $MTN Tokens")
         ]
         await _application.bot.set_my_commands(group_commands, scope=BotCommandScopeAllGroupChats())
         
