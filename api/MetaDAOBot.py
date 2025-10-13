@@ -718,35 +718,27 @@ async def get_listed_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) 
 
 async def ca_command_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await update.message.reply_text(
-        "🪙 *META Contract Address*\n\n"
         f"`{META_CA}`\n\n"
-        "💡 Tap to copy the address above",
         parse_mode='Markdown'
     )
 
 async def web_command_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await update.message.reply_text(
-        "🌐 *MetaDAO Website*\n\n"
-        f"Visit us at: {RESOURCE_LINKS['website']}\n\n"
-        "Explore our platform, learn about futarchy, and discover upcoming projects!",
+        f"{RESOURCE_LINKS['website']}\n\n"
         parse_mode='Markdown',
         disable_web_page_preview=True
     )
 
 async def docs_command_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await update.message.reply_text(
-        "📚 *MetaDAO Documentation*\n\n"
-        f"Access our docs at: {RESOURCE_LINKS['docs']}\n\n"
-        "Find guides, tutorials, and detailed information about our platform.",
+        f"{RESOURCE_LINKS['docs']}\n\n"
         parse_mode='Markdown',
         disable_web_page_preview=True
     )
 
 async def icos_command_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await update.message.reply_text(
-        "📅 *MetaDAO Calendar & ICOs*\n\n"
-        f"View all upcoming ICOs: {RESOURCE_LINKS['icos']}\n\n"
-        "Stay updated on the latest project launches and investment opportunities!",
+        f"{RESOURCE_LINKS['icos']}\n\n"
         parse_mode='Markdown',
         disable_web_page_preview=True
     )
