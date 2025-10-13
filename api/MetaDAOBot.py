@@ -84,10 +84,10 @@ META_CA = 'METAwkXcqyXKy1AtsSgJ8JiUHwGCafnZL38n3vYmeta'
 def main_inline_keyboard():
     keyboard = [
         [InlineKeyboardButton("🚀 Get Listed", callback_data='get_listed'), InlineKeyboardButton("📅 ICOs & Calendar", callback_data='icos')],
-        [InlineKeyboardButton("📚 How Launches Work", callback_data='how_launches_work'), InlineKeyboardButton("🎯 Introduction to Futarchy", callback_data='futarchy_intro')],
+        [InlineKeyboardButton("📚 About Launches", callback_data='how_launches_work'), InlineKeyboardButton("🎯 About Futarchy", callback_data='futarchy_intro')],
         [InlineKeyboardButton("📊 Proposals", callback_data='proposals'), InlineKeyboardButton("💼 For Entrepreneurs", callback_data='entrepreneurs')],
-        [InlineKeyboardButton("💰 For Investors", callback_data='investors'), InlineKeyboardButton("🎁 Redeem $MTN", callback_data='redeem_mtn')],
-        [InlineKeyboardButton("🔄 Redeem $META", callback_data='redeem_meta'), InlineKeyboardButton("💬 Support Request", callback_data='support_request')]
+        [InlineKeyboardButton("💰 For Investors", callback_data='investors'), InlineKeyboardButton("🗻 Redeem $MTN", callback_data='redeem_mtn')],
+        [InlineKeyboardButton("🔥 Redeem $META", callback_data='redeem_meta'), InlineKeyboardButton("💬 Support Request", callback_data='support_request')]
     ]
     return InlineKeyboardMarkup(keyboard)
 
