@@ -977,7 +977,7 @@ async def handle_ca(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     ca_variants = ["CA", "ca", "Ca"]
     if update.message.text in ca_variants:
         await update.message.reply_text(
-            f"🪙 *META Contract Address*\n\n`{META_CA}`\n\n💡 Tap to copy",
+            f"`{META_CA}`\n\n",
             parse_mode='Markdown',
             reply_markup=ReplyKeyboardRemove()
         )
