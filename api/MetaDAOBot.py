@@ -230,6 +230,7 @@ async def start_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         "📖 *Quick Links:*\n"
         "• Documentation: [docs.metadao.fi](https://docs.metadao.fi/)\n"
         "• Website: [metadao.fi](https://metadao.fi)\n\n"
+        "• Calendar: [idontbelieve.link](https://www.idontbelieve.link)\n\n"
         "• Ca: METAwkXcqyXKy1AtsSgJ8JiUHwGCafnZL38n3vYmeta\n\n"
         "👇 *Select an option below to get started:*"
     )
