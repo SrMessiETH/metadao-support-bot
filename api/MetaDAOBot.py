@@ -63,6 +63,7 @@ RESOURCE_LINKS = {
     'evora': 'https://www.idontbelieve.link/?p=283eb88879cf80aaa0b7ed2c1f691d2d&pm=c',
     'aurum': 'https://www.idontbelieve.link/?p=285eb88879cf808e83d3f2ea73b00647&pm=c',
     'redeem_mtn': 'https://v1.metadao.fi/mtncapital/redeem',
+    'redeem_meta': 'https://v1.metadao.fi/migration',
 }
 
 # Known project info
@@ -86,7 +87,7 @@ def main_inline_keyboard():
         [InlineKeyboardButton("📚 How Launches Work", callback_data='how_launches_work'), InlineKeyboardButton("🎯 Introduction to Futarchy", callback_data='futarchy_intro')],
         [InlineKeyboardButton("📊 Proposals", callback_data='proposals'), InlineKeyboardButton("💼 For Entrepreneurs", callback_data='entrepreneurs')],
         [InlineKeyboardButton("💰 For Investors", callback_data='investors'), InlineKeyboardButton("🎁 Redeem $MTN", callback_data='redeem_mtn')],
-        [InlineKeyboardButton("💬 Support Request", callback_data='support_request')]
+        [InlineKeyboardButton("🔄 Redeem $META", callback_data='redeem_meta'), InlineKeyboardButton("💬 Support Request", callback_data='support_request')]
     ]
     return InlineKeyboardMarkup(keyboard)
 
@@ -204,7 +205,6 @@ async def forward_to_support(update: Update, context: ContextTypes.DEFAULT_TYPE)
             f"New support request from {context.user_data.get('name')} ({username}):\n"
             f"Email: {context.user_data.get('email')}\n"
             f"Question: {context.user_data.get('question')}\n"
-            # Included subcategory in the forwarded message
             f"Subcategory: {context.user_data.get('subcategory', 'N/A')}\n"
             f"Category: {context.user_data.get('category', 'General')}\n"
             f"User ID: {user.id}\n"
@@ -227,7 +227,7 @@ async def start_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         "💬 Submit support requests\n\n"
         "📖 *Quick Links:*\n"
         "• Documentation: [docs.metadao.fi](https://docs.metadao.fi/)\n"
-        "• Website: [metadao.fi](https://metadao.fi)\n\n"
+        "• Website: [metadao.fi](https://metadao.fi)\n"
         "• Calendar: [idontbelieve.link](https://www.idontbelieve.link)\n\n"
         "• Ca: METAwkXcqyXKy1AtsSgJ8JiUHwGCafnZL38n3vYmeta\n\n"
         "👇 *Select an option below to get started:*"
@@ -339,6 +339,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         'entrepreneurs': ('💼 For Entrepreneurs', 'Benefits and resources for project founders'),
         'investors': ('💰 For Investors', 'Investment opportunities and benefits'),
         'redeem_mtn': ('🎁 Redeem $MTN Tokens', 'Redeem your $MTN tokens'),
+        'redeem_meta': ('🔄 Redeem $META Tokens', 'Migrate to the new $META contract'),
     }
     if data in category_map:
         title, description = category_map[data]
@@ -750,6 +751,13 @@ async def redeem_mtn_command_handler(update: Update, context: ContextTypes.DEFAU
         disable_web_page_preview=True
     )
 
+async def redeem_meta_command_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    await update.message.reply_text(
+        f"{RESOURCE_LINKS['redeem_meta']}\n\n",
+        parse_mode='Markdown',
+        disable_web_page_preview=True
+    )
+
 async def handle_ca(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if update.effective_chat.type == 'private':
         return
@@ -825,6 +833,7 @@ async def get_application():
         _application.add_handler(CommandHandler('docs', docs_command_handler))
         _application.add_handler(CommandHandler('icos', icos_command_handler))
         _application.add_handler(CommandHandler('redeem_mtn', redeem_mtn_command_handler))
+        _application.add_handler(CommandHandler('redeem_meta', redeem_meta_command_handler))
         
         _application.add_handler(get_listed_conv_handler)
         _application.add_handler(conv_handler)
@@ -853,7 +862,8 @@ async def get_application():
             BotCommand("web", "Get MetaDAO website link"),
             BotCommand("docs", "Get documentation link"),
             BotCommand("icos", "Get calendar and ICOs link"),
-            BotCommand("redeem_mtn", "Redeem $MTN Tokens")
+            BotCommand("redeem_mtn", "Redeem $MTN Tokens"),
+            BotCommand("redeem_meta", "Redeem $META Tokens")
         ]
         await _application.bot.set_my_commands(group_commands, scope=BotCommandScopeAllGroupChats())
         
