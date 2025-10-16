@@ -430,7 +430,7 @@ async def get_email(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     
     await update.message.reply_text(
         "✅ Perfect!\n\n"
-        f"📝 *Step 3 of 3:* Please describe your *{subcategory.lower()}* in detail:",
+        "📝 *Step 3 of 3:* Please describe your *{subcategory.lower()}* in detail:",
         parse_mode='Markdown'
     )
     return QUESTION
@@ -511,6 +511,77 @@ async def markets_command_handler(update: Update, context: ContextTypes.DEFAULT_
         disable_web_page_preview=True
     )
 
+async def twitter_command_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    await update.message.reply_text(
+        "🐦 *Follow MetaDAO on X (Twitter)*\n\n"
+        "Stay updated with the latest news and announcements:\n"
+        "https://x.com/MetaDAOProject\n\n"
+        "Join our community and be part of the conversation!",
+        parse_mode='Markdown',
+        disable_web_page_preview=True
+    )
+
+async def telegram_command_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    await update.message.reply_text(
+        "💬 *Join MetaDAO on Telegram*\n\n"
+        "Connect with our community:\n"
+        "https://t.me/+WXdyUMb4-M9lNmNh\n\n"
+        "Ask questions, share ideas, and stay updated!",
+        parse_mode='Markdown',
+        disable_web_page_preview=True
+    )
+
+async def discord_command_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    await update.message.reply_text(
+        "💬 *Join MetaDAO on Discord*\n\n"
+        "Connect with our community:\n"
+        "https://discord.com/invite/metadao\n\n"
+        "Participate in discussions and get support!",
+        parse_mode='Markdown',
+        disable_web_page_preview=True
+    )
+
+async def youtube_command_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    await update.message.reply_text(
+        "📺 *MetaDAO on YouTube*\n\n"
+        "Watch tutorials, updates, and more:\n"
+        "https://www.youtube.com/@metaDAOproject\n\n"
+        "Subscribe to stay informed!",
+        parse_mode='Markdown',
+        disable_web_page_preview=True
+    )
+
+async def blog_command_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    await update.message.reply_text(
+        "📝 *MetaDAO Blog*\n\n"
+        "Read our latest articles and updates:\n"
+        "https://blog.metadao.fi/\n\n"
+        "Deep dives, announcements, and insights!",
+        parse_mode='Markdown',
+        disable_web_page_preview=True
+    )
+
+async def futarchyamm_command_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    await update.message.reply_text(
+        "📊 *Futarchy AMM Metrics*\n\n"
+        "View detailed analytics and metrics:\n"
+        "https://dune.com/jacktheguy/futarchy-amm-metrics\n\n"
+        "Track performance and market data!",
+        parse_mode='Markdown',
+        disable_web_page_preview=True
+    )
+
+async def github_command_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    await update.message.reply_text(
+        "💻 *MetaDAO on GitHub*\n\n"
+        "Explore our open-source code:\n"
+        "https://github.com/metaDAOproject\n\n"
+        "Contribute, review, and build with us!",
+        parse_mode='Markdown',
+        disable_web_page_preview=True
+    )
+
+
 async def handle_ca(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if update.effective_chat.type == 'private':
         return
@@ -541,7 +612,7 @@ async def get_listed_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         "📝 *Project Information:*\n"
         "• Project name and description (short & long versions)\n"
         "• Token name and ticker\n\n"
-        "🖼️ *Links of Visual Assets:*\n"
+        "🖼️ *Visual Assets:*\n"
         "• Project image and token image\n\n"
         "💰 *Financial Details:*\n"
         "• Minimum raise amount\n"
@@ -877,6 +948,14 @@ async def get_application():
         _application.add_handler(CommandHandler('docs', docs_command_handler))
         _application.add_handler(CommandHandler('icos', icos_command_handler))
         _application.add_handler(CommandHandler('markets', markets_command_handler))
+        _application.add_handler(CommandHandler('twitter', twitter_command_handler))
+        
+        _application.add_handler(CommandHandler('telegram', telegram_command_handler))
+        _application.add_handler(CommandHandler('discord', discord_command_handler))
+        _application.add_handler(CommandHandler('youtube', youtube_command_handler))
+        _application.add_handler(CommandHandler('blog', blog_command_handler))
+        _application.add_handler(CommandHandler('futarchyamm', futarchyamm_command_handler))
+        _application.add_handler(CommandHandler('github', github_command_handler))
         
         _application.add_handler(get_listed_conv_handler)
         _application.add_handler(conv_handler)
@@ -905,7 +984,14 @@ async def get_application():
             BotCommand("web", "Get MetaDAO website link"),
             BotCommand("docs", "Get documentation link"),
             BotCommand("icos", "Get calendar and ICOs link"),
-            BotCommand("markets", "View active markets")
+            BotCommand("markets", "View active markets"),
+            BotCommand("twitter", "Follow us on Twitter/X"),
+            BotCommand("telegram", "Join our Telegram community"),
+            BotCommand("discord", "Join our Discord server"),
+            BotCommand("youtube", "Subscribe to our YouTube"),
+            BotCommand("blog", "Read our blog"),
+            BotCommand("futarchyamm", "View AMM metrics"),
+            BotCommand("github", "Explore our GitHub")
         ]
         await _application.bot.set_my_commands(group_commands, scope=BotCommandScopeAllGroupChats())
         
