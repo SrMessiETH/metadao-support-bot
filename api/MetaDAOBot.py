@@ -97,6 +97,7 @@ def proposals_inline_keyboard():
         [InlineKeyboardButton("✍️ Creating Proposals", callback_data='proposals_create')],
         [InlineKeyboardButton("📈 Trading Proposals", callback_data='proposals_trade')],
         [InlineKeyboardButton("✅ Finalizing Proposals", callback_data='proposals_finalize')],
+        [InlineKeyboardButton("📊 View Markets", url='https://v1.metadao.fi/markets')],
         [InlineKeyboardButton("⬅️ Back to Main Menu", callback_data='main_menu')]
     ]
     return InlineKeyboardMarkup(keyboard)
@@ -243,7 +244,8 @@ async def help_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         "/ca - Get META contract address\n"
         "/web - Get MetaDAO website link\n"
         "/docs - Get documentation link\n"
-        "/icos - Get calendar and ICOs link\n\n"
+        "/icos - Get calendar and ICOs link\n"
+        "/markets - View active markets\n\n"
         "*How to use:*\n"
         "• Use the inline menu buttons to navigate\n"
         "• Select 'Support Request' to submit a question\n"
@@ -300,9 +302,10 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
     if data == 'proposals':
         await query.edit_message_text(
-            text="📊 *Proposals*\n\nLearn about creating, trading, and finalizing proposals:",
+            text="📊 *Proposals*\n\nLearn about creating, trading, and finalizing proposals:\n\n🔗 [View Active Markets](https://v1.metadao.fi/markets)",
             parse_mode='Markdown',
-            reply_markup=proposals_inline_keyboard()
+            reply_markup=proposals_inline_keyboard(),
+            disable_web_page_preview=True
         )
         return
 
@@ -499,10 +502,10 @@ async def icos_command_handler(update: Update, context: ContextTypes.DEFAULT_TYP
         disable_web_page_preview=True
     )
 
-async def proposals_command_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def markets_command_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await update.message.reply_text(
-        "📊 *MetaDAO Proposals*\n\n"
-        "View active proposals: https://v1.metadao.fi/proposals\n\n"
+        "📊 *MetaDAO Markets*\n\n"
+        "View active markets: https://v1.metadao.fi/markets\n\n"
         "Participate in governance by trading on proposal markets!",
         parse_mode='Markdown',
         disable_web_page_preview=True
@@ -538,7 +541,7 @@ async def get_listed_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         "📝 *Project Information:*\n"
         "• Project name and description (short & long versions)\n"
         "• Token name and ticker\n\n"
-        "🖼️ *Link of Visual Assets:*\n"
+        "🖼️ *Visual Assets:*\n"
         "• Project image and token image\n\n"
         "💰 *Financial Details:*\n"
         "• Minimum raise amount\n"
@@ -873,7 +876,7 @@ async def get_application():
         _application.add_handler(CommandHandler('web', web_command_handler))
         _application.add_handler(CommandHandler('docs', docs_command_handler))
         _application.add_handler(CommandHandler('icos', icos_command_handler))
-        _application.add_handler(CommandHandler('proposals', proposals_command_handler))
+        _application.add_handler(CommandHandler('markets', markets_command_handler))
         
         _application.add_handler(get_listed_conv_handler)
         _application.add_handler(conv_handler)
@@ -902,7 +905,7 @@ async def get_application():
             BotCommand("web", "Get MetaDAO website link"),
             BotCommand("docs", "Get documentation link"),
             BotCommand("icos", "Get calendar and ICOs link"),
-            BotCommand("proposals", "View active proposals")
+            BotCommand("markets", "View active markets")
         ]
         await _application.bot.set_my_commands(group_commands, scope=BotCommandScopeAllGroupChats())
         
