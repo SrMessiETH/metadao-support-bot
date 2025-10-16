@@ -214,7 +214,7 @@ async def start_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     welcome_text = (
         f"👋 *Welcome to MetaDAO, {user.first_name}!*\n\n"
         "I'm your MetaDAO assistant, here to help you navigate our platform.\n\n"
-        "*What I can help you with:*\n"
+        "What I can help you with:\n"
         "📅 View upcoming ICOs and calendar\n"
         "📚 Learn about our launch process\n"
         "🎯 Understand futarchy governance\n"
@@ -499,6 +499,15 @@ async def icos_command_handler(update: Update, context: ContextTypes.DEFAULT_TYP
         disable_web_page_preview=True
     )
 
+async def proposals_command_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    await update.message.reply_text(
+        "📊 *MetaDAO Proposals*\n\n"
+        "View active proposals: https://v1.metadao.fi/proposals\n\n"
+        "Participate in governance by trading on proposal markets!",
+        parse_mode='Markdown',
+        disable_web_page_preview=True
+    )
+
 async def handle_ca(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if update.effective_chat.type == 'private':
         return
@@ -529,7 +538,7 @@ async def get_listed_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         "📝 *Project Information:*\n"
         "• Project name and description (short & long versions)\n"
         "• Token name and ticker\n\n"
-        "🖼️ *Visual Assets:*\n"
+        "🖼️ *Link of Visual Assets:*\n"
         "• Project image and token image\n\n"
         "💰 *Financial Details:*\n"
         "• Minimum raise amount\n"
@@ -864,6 +873,7 @@ async def get_application():
         _application.add_handler(CommandHandler('web', web_command_handler))
         _application.add_handler(CommandHandler('docs', docs_command_handler))
         _application.add_handler(CommandHandler('icos', icos_command_handler))
+        _application.add_handler(CommandHandler('proposals', proposals_command_handler))
         
         _application.add_handler(get_listed_conv_handler)
         _application.add_handler(conv_handler)
@@ -891,7 +901,8 @@ async def get_application():
             BotCommand("ca", "Get META contract address"),
             BotCommand("web", "Get MetaDAO website link"),
             BotCommand("docs", "Get documentation link"),
-            BotCommand("icos", "Get calendar and ICOs link")
+            BotCommand("icos", "Get calendar and ICOs link"),
+            BotCommand("proposals", "View active proposals")
         ]
         await _application.bot.set_my_commands(group_commands, scope=BotCommandScopeAllGroupChats())
         
