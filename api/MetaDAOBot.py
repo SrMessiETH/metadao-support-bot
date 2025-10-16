@@ -541,7 +541,7 @@ async def get_listed_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         "📝 *Project Information:*\n"
         "• Project name and description (short & long versions)\n"
         "• Token name and ticker\n\n"
-        "🖼️ *Visual Assets:*\n"
+        "🖼️ *Links of Visual Assets:*\n"
         "• Project image and token image\n\n"
         "💰 *Financial Details:*\n"
         "• Minimum raise amount\n"
