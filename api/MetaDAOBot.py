@@ -9,7 +9,6 @@ import gspread
 from google.oauth2.service_account import Credentials
 from http.server import BaseHTTPRequestHandler
 import asyncio
-from groq import Groq
 
 # Enable logging
 logging.basicConfig(
@@ -24,13 +23,13 @@ SUPPORT_CATEGORY, NAME, EMAIL, QUESTION = range(4)
 # States for get listed conversation
 GET_LISTED_CONFIRM, PROJECT_NAME_SHORT, PROJECT_DESC_LONG, TOKEN_NAME, TOKEN_TICKER, PROJECT_IMAGE, TOKEN_IMAGE, MIN_RAISE, MONTHLY_BUDGET, PERFORMANCE_PACKAGE, PERFORMANCE_UNLOCK_TIME, INTELLECTUAL_PROPERTY = range(12, 24)
 
+
 # Secrets from env vars
 BOT_TOKEN = os.environ.get('BOT_TOKEN')
 if not BOT_TOKEN:
     raise ValueError("BOT_TOKEN env var is required")
 SUPPORT_CHAT_ID = int(os.environ.get('SUPPORT_CHAT_ID', 0)) if os.environ.get('SUPPORT_CHAT_ID') else None
 SHEET_NAME = os.environ.get('SHEET_NAME', 'MetaDAO Support Requests')
-GROQ_API_KEY = os.environ.get('GROQ_API_KEY')
 
 # Google Sheets setup
 GOOGLE_CREDENTIALS_JSON = os.environ.get('GOOGLE_CREDENTIALS')
@@ -39,13 +38,6 @@ if not GOOGLE_CREDENTIALS_JSON:
     GOOGLE_CREDENTIALS = None
 else:
     GOOGLE_CREDENTIALS = json.loads(GOOGLE_CREDENTIALS_JSON)
-
-groq_client = None
-if GROQ_API_KEY:
-    groq_client = Groq(api_key=GROQ_API_KEY)
-    logger.info("Groq AI client initialized successfully")
-else:
-    logger.warning("GROQ_API_KEY not found - AI features will be disabled")
 
 # Resource links
 RESOURCE_LINKS = {
@@ -71,9 +63,6 @@ RESOURCE_LINKS = {
     'zklsol': 'https://www.idontbelieve.link/?p=27eeb88879cf81269d9ece79cba66623&pm=c',
     'evora': 'https://www.idontbelieve.link/?p=283eb88879cf80aaa0b7ed2c1f691d2d&pm=c',
     'aurum': 'https://www.idontbelieve.link/?p=285eb88879cf808e83d3f2ea73b00647&pm=c',
-    'redeem_mtn': 'https://v1.metadao.fi/mtncapital/redeem',
-    'redeem_meta': 'https://v1.metadao.fi/migration',
-    'amm': 'https://dune.com/jacktheguy/futarchy-amm-metrics'
 }
 
 # Known project info
@@ -91,347 +80,15 @@ PROJECT_INFO = {
 }
 META_CA = 'METAwkXcqyXKy1AtsSgJ8JiUHwGCafnZL38n3vYmeta'
 
-METADAO_KNOWLEDGE = """
-MetaDAO is a decentralized autonomous organization that uses futarchy for governance and launches new crypto projects.
-
-Key Information:
-- META Token Contract: METAwkXcqyXKy1AtsSgJ8JiUHwGCafnZL38n3vYmeta
-- Website: https://metadao.fi
-- Documentation: https://docs.metadao.fi/
-- ICO Calendar: https://www.idontbelieve.link
-
-How Launches Work:
-- Projects can get listed on MetaDAO to raise funds
-- ICOs are conducted through the platform
-- Investors can participate on initial token offerings (ICOs)
-- Projects benefit from MetaDAO's infrastructure and community
-
-Futarchy Governance:
-- MetaDAO uses futarchy for decision-making
-- Proposals are created and traded on prediction markets
-- Markets determine which proposals pass based on expected outcomes
-- TWAP (Time-Weighted Average Price) is used for finalization
-
-For Entrepreneurs:
-- Get your project listed on MetaDAO
-- Access to funding and community
-- Launch infrastructure and support
-- Performance-based packages available
-
-For Investors:
-- Participate in early-stage initial coin offering
-- Access to vetted projects
-- Transparent governance through futarchy
-- Multiple investment opportunities
-
-Token Redemption:
-- $MTN tokens can be redeemed at: https://v1.metadao.fi/mtncapital/redeem
-- $META migration available at: https://v1.metadao.fi/migration
-
-Support:
-- Submit support requests through the bot
-- Categories: Refunds, Bugs, Suggestions, Technical Issues, Account Issues, General Inquiry
-"""
-
-FAQ_DATABASE = {
-    "futarchy": {
-        "question": "What is futarchy?",
-        "answer": "Futarchy is a governance system where decisions are made based on prediction markets. In MetaDAO, proposals are traded on markets, and the market prices determine which proposals pass. This creates a data-driven approach to governance where the wisdom of the crowd guides decision-making.",
-        "related_links": [RESOURCE_LINKS['futarchy_intro'], RESOURCE_LINKS['proposals_create']]
-    },
-    "ico": {
-        "question": "How do ICOs work on MetaDAO?",
-        "answer": "MetaDAO hosts token sales for vetted projects. Projects get listed, set their fundraising goals, and investors can participate in the token sale. The platform provides infrastructure, community access, and transparent governance for all launches.",
-        "related_links": [RESOURCE_LINKS['icos'], RESOURCE_LINKS['how_launches_work']]
-    },
-    "listing": {
-        "question": "How do I get my project listed?",
-        "answer": "To get listed, click the 'Get Listed' button and fill out the application form with your project details, token information, and financial requirements. Our team reviews submissions within 3-5 business days.",
-        "related_links": [RESOURCE_LINKS['get_listed'], RESOURCE_LINKS['entrepreneurs']]
-    },
-    "meta_token": {
-        "question": "What is the META token?",
-        "answer": f"META is MetaDAO's governance token with contract address: {META_CA}. It's used for participating in futarchy governance and accessing platform benefits.",
-        "related_links": [RESOURCE_LINKS['website'], RESOURCE_LINKS['docs']]
-    },
-    "proposals": {
-        "question": "How do proposals work?",
-        "answer": "Proposals are created, traded on prediction markets, and finalized based on TWAP (Time-Weighted Average Price). Users can create proposals, trade on their outcomes, and the market determines which proposals pass.",
-        "related_links": [RESOURCE_LINKS['proposals_create'], RESOURCE_LINKS['proposals_trade'], RESOURCE_LINKS['proposals_finalize']]
-    },
-    "investing": {
-        "question": "How can I invest in projects?",
-        "answer": "Browse the ICO calendar to see upcoming and active token sales. Each project has detailed information about tokenomics, team, and goals. You can participate directly through the platform.",
-        "related_links": [RESOURCE_LINKS['icos'], RESOURCE_LINKS['investors']]
-    },
-    "redemption": {
-        "question": "How do I redeem my tokens?",
-        "answer": f"You can redeem $MTN tokens at {RESOURCE_LINKS['redeem_mtn']} and migrate to the new $META contract at {RESOURCE_LINKS['redeem_meta']}.",
-        "related_links": [RESOURCE_LINKS['redeem_mtn'], RESOURCE_LINKS['redeem_meta']]
-    },
-    "interact_ecosystem": {
-        "question": "How to interact with the MetaDAO ecosystem?",
-        "answer": "MetaDAO enables interaction primarily through trading conditional markets on project proposals, allowing you to bet on outcomes (pass/fail) and hedge/grow your portfolio.Key Steps:\n1. Monitor Proposals: Watch for proposals that gain enough stake, moving half the project's liquidity (e.g., from META/USDC spot) into pass and fail conditional markets for 3 days.\n2. Trade Conditionally: Buy/sell tokens in these markets like normal trades, but they revert if the proposal doesn't pass as expected.\n    ◦ Example (ORE Proposal): If you believe ORE hits $30 on passing (vs. $19 current), buy ORE in the pass market (e.g., $1,000 for 50 ORE at $20). On pass: You own them. On fail: Trade voids—no loss.\n3. Portfolio Strategies:\n    ◦ Bad Proposal (e.g., EXMPL founder siphons funds): Sell pass (overvalued if token tanks to $0) and buy fail (undervalued at ~11% profit potential on liquidation).\n    ◦ Good Proposal (e.g., XYZ adds revenue): Buy pass if undervalued (e.g., $110M vs. $150M fair value); sell if overvalued. Hedge by trading fail around fair value.Proposal Finalization:Outcomes use lagging TWAPs (time-weighted average prices) over the period to prevent manipulation—observations lag (e.g., max $5/min change from $500 baseline). Pass requires TWAP ≥1.5% above fail threshold by default.Trade via supported DEXs; start small to learn conditional reversion.",
-        "related_links": [RESOURCE_LINKS['icos'], RESOURCE_LINKS['investors']]
-    },
-    "create_proposal_cost": {
-        "question": "How much cost to make a proposal? Anyone can do it?",
-        "answer": "Creating Proposals\nAnyone can create a proposal to a project. Proposals can:\n• Spend USDC from the treasury\n• Issue new tokens\n• Update token metadata\n• Increase or decrease the liquidity provided by the project’s treasuryOnce a proposal is created, holders must stake tokens on it for it to go live. By default, a proposal requires 50,000 tokens (5% of the ICO) staked on it for it to go live.Staking is purely to prevent spam and doesn’t have lockups or risk of slashing.There can only be one proposal live at once",
-        "related_links": [RESOURCE_LINKS['proposals_create']]
-    },
-    "participate_icos": {
-        "question": "How to participate on ICOS?",
-        "answer": "MetaDAO ICOs protect investors from rugs via mechanistic (treasury) and legal (revenue) safeguards, letting you buy tokens with reduced risk.Key Protections:\n1. Mechanistic Treasury Protection:\n    ◦ All raised funds enter a market-governed treasury—no team control.\n    ◦ If rugged (team walks) or token price < book value, anyone can propose returning capital to holders.\n    ◦ Past Solana ICO Risks Avoided: Parrot ($85M raised, $72M rugged); UXD ($57M, $46M insiders took); Mango ($70M, founders suing over theft); Aurory ($108M, token -99.5%, funds vanished).\n2. Legal Revenue Protection:\n    ◦ Launch creates a legal entity for tokenholders.\n    ◦ Sue teams for revenue misappropriation or force IP transfer (e.g., domains/socials) to a new team.\n    ◦ Examples: Uniswap ($30M frontend fees to Labs, not holders); Unibot/Trojan ($206M fees kept by team).How to Participate:\n• Buy Tokens at Launch: Trade on MetaDAO's spot markets (e.g., NEW/USDC) during ICO—funds auto-secure in treasury.\n• Monitor & Vote: Stake/track proposals; use conditional markets to hedge (as in prior guides).\n• Start Small: Review project treasury/book value; exit via proposals if risks emerge.",
-        "related_links": [RESOURCE_LINKS['icos'], RESOURCE_LINKS['investors']]
-    },
-    "futarchy_works": {
-        "question": "How Futarchy works?",
-        "answer": "Replacing token voting with market trading to make smarter, less manipulable decisions. Since November 2023, MetaDAO has run 96 proposals for 14 organizations, including Jito’s fee switch, Flash’s revenue-sharing for stakers, and all of Sanctum’s governance.Core Mechanism (TL;DR)\n• Trade Outcome Markets: For each proposal, traders buy/sell in two conditional markets: \"Token value if proposal passes\" vs. \"Token value if proposal fails.\"\n• Decide by Market Wisdom: Accept the proposal if the pass market prices higher (traders predict value increase); reject if fail prices higher (value decrease).\n• Invented by economist Robin Hanson, it lets markets aggregate info efficiently—no quorums or whale dominance.Why It's Better Than VotingMarkets historically outperform experts:\n• Elections: Prediction markets beat pollsters.\n• Weather: Orange juice futures outpredict government forecasts.\n• Disasters: In the 1986 Challenger explosion, markets pinpointed Morton-Thiokol’s O-rings as the cause in 16 minutes (stock plunged 12% vs. others flat/up), while government took 4 months.Why It MattersFutarchy hardens against rugs: ICO funds in market-governed treasuries can't be easily siphoned, as traders enforce accountability. As Umbra Research notes, it's \"trustless joint ownership.\" Per Kevin Heavey: \"Futarchy is such a radical improvement over majoritarian DAOs... any DAO still [using] token voting... is malicious or incompetent.\" Bind to futarchy for fair, market-driven ownership—or stick to traditional companies without tokens.",
-        "related_links": [RESOURCE_LINKS['futarchy_intro'], RESOURCE_LINKS['proposals_create'], RESOURCE_LINKS['proposals_trade'], RESOURCE_LINKS['proposals_finalize']]
-    },
-    "nfts_related": {
-        "question": "There are NFTs related?",
-        "answer": "NO",
-        "related_links": []
-    },
-    "what_is_metadao": {
-        "question": "What is MetaDAO?",
-        "answer": "MetaDAO is for founders who want to launch a token the right way. MetaDAO’s core principles are:\n• Fair launch early: instead of launching at a high FDV, projects launch early with high-float ICOs so that they can grow over time.\n• Real ownership and unruggability: the most important parts of the project - the intellectual property, the funds, and the ability to mint new tokens - are controlled by market-driven governance. This imbues the token with value and prevents malicious teams from rugging the treasury.\n• Pay-for-performance: insiders unlocks are proportional to the premium over the launch price. This keeps teams and participants aligned.While much of crypto concerns itself with how to maximally extract value over the short-term, MetaDAO is built from the ground up for long-term founders and their communities.",
-        "related_links": [RESOURCE_LINKS['website'], RESOURCE_LINKS['docs']]
-    },
-    "get_listed": {
-        "question": "How to get listed on MetaDAO?",
-        "answer": "For the moment you need to talk with Proph3t or Kollan until we go permisionless",
-        "related_links": [RESOURCE_LINKS['get_listed'], RESOURCE_LINKS['entrepreneurs']]
-    },
-    "discretionary_cap": {
-        "question": "why discretionary cap?",
-        "answer": "Why a discretionary cap? The purpose of the discretionary cap is to allow believers to participate while preventing projects from over-raising.If you look at other launch mechanisms, they all have issues:\n• Capped first-come-first-serve launches can be sniped\n• Capped pro rata launches can be gamed - if you see a sale is 2x oversubscribed, you may put up 2x the USDC, which makes it even more oversubscribed - which leads to poor UX for believers\n• Uncapped sales are more likely to over-raise\n• Dutch auctions are too complicated",
-        "related_links": [RESOURCE_LINKS['icos'], RESOURCE_LINKS['how_launches_work']]
-    },
-    "sale_successful": {
-        "question": "What happens when a sale is successful?",
-        "answer": "If a sale is successful, the following happens:\n1. All USDC goes to a market-governed treasury.\n2. The authority to mint new tokens is transferred to the treasury.\n3. That treasury provides 20% of the USDC and 5M tokens to liquidity pools. In effect the project will buy back tokens below the ICO price and sell them above the ICO price.The team can then spend their configured monthly budget out of the treasury. To make larger spends or issue new tokens, they need to raise governance proposals.",
-        "related_links": [RESOURCE_LINKS['icos'], RESOURCE_LINKS['how_launches_work']]
-    },
-    "sale_fails": {
-        "question": "What happens when a sale fails to reach its minimum?",
-        "answer": "When a project fails to reach its minimum, everyone is refunded their USDC back.",
-        "related_links": [RESOURCE_LINKS['icos'], RESOURCE_LINKS['how_launches_work']]
-    },
-    "teams_incentivized": {
-        "question": "How are teams incentivized?",
-        "answer": "Teams can optionally decide to have up to 15M tokens (50% of initial supply) allocated to a price-based performance package.This package is split into 5 equal tranches: one that unlocks at 2x ICO price, one that unlocks at 4x ICO price, and so on for 8x, 16x, and 32x.The minimum unlock time on these tranches is at least 18 months from ICO date but can be extended by the founder.Teams may also forego this route and instead figure out incentives later, as MetaDAO did.",
-        "related_links": [RESOURCE_LINKS['get_listed'], RESOURCE_LINKS['entrepreneurs']]
-    },
-    "why_metadao": {
-        "question": "Why MetaDAO?",
-        "answer": "Why Launch on MetaDAO?MetaDAO is the best for crypto-native businesses seeking sustainable capital without rugs or hype traps—framed by founders as \"a place... that doesn’t suck.\"Vs. Alternatives:\n• Standard VC/Token Path: Extracts from retail; locks teams into bad outcomes (hyped TGEs, vesting).\n• No Token: Solid for equity, but misses crypto alignment.\n• Bonding Curves (Pump/etc.): Low raises ($10k–$100k); no value, snipers, poor hiring.\n• Normal ICOs (Metaplex): Viable with trust/legal work, but rugs scare long-term holders.MetaDAO Perks:\n• Valuable, intrinsic tokens for quality holders.\n• Transparent treasury (no OTC doubts).\n• Early entry, mintable supply, believer community.\n• Minimal legal/smart contract hassle.Trade-offs: Token volatility. But \"if we were launching today, MetaDAO is the place.\" – Proph3t & Kollan House",
-        "related_links": [RESOURCE_LINKS['website'], RESOURCE_LINKS['docs']]
-    },
-    "meta_token_does": {
-        "question": "What the $META token does?",
-        "answer": "Meta token is a blank slate. It’s one proposal away from being anything a passing proposal wants it to be.",
-        "related_links": [RESOURCE_LINKS['website'], RESOURCE_LINKS['docs'], RESOURCE_LINKS['amm']]
-    },
-    "token_gate_icos": {
-        "question": "Is there a reaosn why it isn’t being used to token gate ICOs, like $VIRTUAL does for virtual launches?",
-        "answer": "You don’t have to own apple shares to buy an iphone",
-        "related_links": []
-    },
-    "value_beyond_speculation": {
-        "question": "What is the value behind the token beyond speculation?",
-        "answer": "You all could raise a proposal to say pay us dividens or buy back or burn or…. The bigger thing here is that MetaDAO with its new AMM will be post revenue.",
-         "related_links": [RESOURCE_LINKS['amm']]
-    },
-    "kyc_icos": {
-        "question": "Need KYC for joining ICOs?",
-        "answer": "No",
-        "related_links": [RESOURCE_LINKS['icos'], RESOURCE_LINKS['how_launches_work']]
-    },
-    "hold_meta_icos": {
-        "question": "Need to hold $META tokens to join ICOs?",
-        "answer": "No",
-        "related_links": [RESOURCE_LINKS['icos'], RESOURCE_LINKS['how_launches_work']]
-    },
-    "meta_holders_benefit": {
-        "question": "Does $META holders benefit from ICOs like early access?",
-        "answer": "NO. MetaDAO accrues fees from the AMM we’ve built which the token of the ICO goes into.",
-         "related_links": [RESOURCE_LINKS['amm']]
-    },
-    "prevent_other_amm": {
-        "question": "Does it prevent any other AMM or MMs from participating in making markets?",
-        "answer": "It does not",
-        "related_links": []
-    },
-    "amm_only_metadao": {
-        "question": "Will MetaDAO’s AMM only be activated for MetaDAO projects?",
-        "answer": "No, it is core to the use of the protocol now. So you have to put funds into the AMM ro tun the proposal",
-         "related_links": [RESOURCE_LINKS['amm']]
-    },
-    "meta_liquidity_pool": {
-        "question": "What is the address of the main liquidity pool for $META?",
-        "answer": "https://solscan.io/token/AUvYM8tdeY8TDJ9SMjRntDuYUuTG3S1TfqurZ9dqW4NM",
-        "related_links": ["https://solscan.io/token/AUvYM8tdeY8TDJ9SMjRntDuYUuTG3S1TfqurZ9dqW4NM"]
-    },
-    "meta_team_allocation": {
-        "question": "Whats $META team allocation?",
-        "answer": "0",
-        "related_links": []
-    },
-    "voting_works": {
-        "question": "How voting works?",
-        "answer": "Check JITO youtube tutorial: https://www.youtube.com/watch?v=1LK8osvL4jg",
-        "related_links": ["https://www.youtube.com/watch?v=1LK8osvL4jg"]
-    }
-}
-def find_relevant_faq(user_message: str) -> dict:
-    """
-    Find the most relevant FAQ based on user message
-    
-    Args:
-        user_message: User's question
-    
-    Returns:
-        FAQ dict or None if no match found
-    """
-    message_lower = user_message.lower()
-    
-    # Keyword mapping to FAQ categories
-    keyword_map = {
-         "interact_ecosystem": ["interact", "ecosystem", "trade", "proposals", "conditional markets"],
-         "create_proposal_cost": ["create proposal", "cost", "anyone", "stake"],
-         "participate_icos": ["participate", "icos", "buy tokens", "protections"],
-         "futarchy_works": ["futarchy works", "mechanism", "markets", "voting"],
-         "nfts_related": ["nfts", "nft"],
-         "what_is_metadao": ["what is metadao", "metadao", "principles"],
-         "get_listed": ["get listed", "permissionless"],
-         "discretionary_cap": ["discretionary cap", "cap", "over-raising"],
-         "sale_successful": ["sale successful", "what happens", "treasury"],
-         "sale_fails": ["sale fails", "refund", "minimum"],
-         "teams_incentivized": ["teams incentivized", "performance package", "unlocks"],
-         "why_metadao": ["why metadao", "launch", "alternatives"],
-         "meta_token_does": ["meta token does", "blank slate"],
-         "token_gate_icos": ["token gate", "virtual", "reason"],
-         "value_beyond_speculation": ["value beyond speculation", "dividends", "buy back"],
-         "kyc_icos": ["kyc", "joining icos"],
-         "hold_meta_icos": ["hold meta", "join icos"],
-         "meta_holders_benefit": ["meta holders benefit", "early access"],
-         "prevent_other_amm": ["prevent amm", "making markets"],
-         "amm_only_metadao": ["amm only metadao", "activated"],
-         "meta_liquidity_pool": ["meta liquidity pool", "address"],
-         "meta_team_allocation": ["meta team allocation"],
-         "voting_works": ["voting works", "jito tutorial"]
-}
-    
-    # Find matching FAQ
-    for faq_key, keywords in keyword_map.items():
-        if any(keyword in message_lower for keyword in keywords):
-            return FAQ_DATABASE.get(faq_key)
-    
-    return None
-
-async def faq_command_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Handle /faq command to show common questions"""
-    if update.effective_chat.type != 'private':
-        return
-    
-    faq_text = (
-        "❓ *Frequently Asked Questions*\n\n"
-        "*Common Topics:*\n\n"
-        "🎯 *Futarchy* - What is futarchy and how does it work?\n"
-        "📅 *ICOs* - How do initial coin offerings work on MetaDAO?\n"
-        "🚀 *Getting Listed* - How to list your project\n"
-        "🪙 *META Token* - Information about the META token\n"
-        "📊 *Proposals* - Creating and trading proposals\n"
-        "💰 *Investing* - How to participate in ICOs\n"
-        "🔄 *Redemption* - Redeeming and migrating tokens\n\n"
-        "💡 *Tip:* Just ask me any question in plain English, and I'll help you find the answer!"
-    )
-    
-    keyboard = [
-        [InlineKeyboardButton("🎯 Futarchy", callback_data='faq_futarchy'), InlineKeyboardButton("📅 ICOs", callback_data='faq_ico')],
-        [InlineKeyboardButton("🚀 Getting Listed", callback_data='faq_listing'), InlineKeyboardButton("🪙 META Token", callback_data='faq_meta_token')],
-        [InlineKeyboardButton("📊 Proposals", callback_data='faq_proposals'), InlineKeyboardButton("💰 Investing", callback_data='faq_investing')],
-        [InlineKeyboardButton("🔄 Redemption", callback_data='faq_redemption'), InlineKeyboardButton("🏠 Main Menu", callback_data='main_menu')]
-    ]
-    
-    await update.message.reply_text(
-        faq_text,
-        parse_mode='Markdown',
-        reply_markup=InlineKeyboardMarkup(keyboard),
-        disable_web_page_preview=True
-    )
-
-async def faq_button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Handle FAQ button callbacks"""
-    query = update.callback_query
-    await query.answer()
-    
-    # Extract FAQ key from callback data
-    faq_key = query.data.replace('faq_', '')
-    faq = FAQ_DATABASE.get(faq_key)
-    
-    if faq:
-        # Format links
-        links_text = "\n\n📚 *Related Resources:*\n"
-        for link in faq['related_links']:
-            links_text += f"• {link}\n"
-        
-        response_text = f"*{faq['question']}*\n\n{faq['answer']}{links_text}"
-        
-        keyboard = [
-            [InlineKeyboardButton("⬅️ Back to FAQs", callback_data='show_faq_menu')],
-            [InlineKeyboardButton("🏠 Main Menu", callback_data='main_menu')]
-        ]
-        
-        await query.edit_message_text(
-            text=response_text,
-            parse_mode='Markdown',
-            reply_markup=InlineKeyboardMarkup(keyboard),
-            disable_web_page_preview=True
-        )
-
-async def show_faq_menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Show FAQ menu when user clicks back"""
-    query = update.callback_query
-    await query.answer()
-    
-    faq_text = (
-        "❓ *Frequently Asked Questions*\n\n"
-        "*Common Topics:*\n\n"
-        "🎯 *Futarchy* - What is futarchy and how does it work?\n"
-        "📅 *ICOs* - How do ICOs work on MetaDAO?\n"
-        "🚀 *Getting Listed* - How to list your project\n"
-        "🪙 *META Token* - Information about the META token\n"
-        "📊 *Proposals* - Creating and trading proposals\n"
-        "💰 *Investing* - How to participate in ICOs\n"
-        "🔄 *Redemption* - Redeeming and migrating tokens\n\n"
-        "💡 *Tip:* Just ask me any question in plain English, and I'll help you find the answer!"
-    )
-    
-    keyboard = [
-        [InlineKeyboardButton("🎯 Futarchy", callback_data='faq_futarchy'), InlineKeyboardButton("📅 ICOs", callback_data='faq_ico')],
-        [InlineKeyboardButton("🚀 Getting Listed", callback_data='faq_listing'), InlineKeyboardButton("🪙 META Token", callback_data='faq_meta_token')],
-        [InlineKeyboardButton("📊 Proposals", callback_data='faq_proposals'), InlineKeyboardButton("💰 Investing", callback_data='faq_investing')],
-        [InlineKeyboardButton("🔄 Redemption", callback_data='faq_redemption'), InlineKeyboardButton("🏠 Main Menu", callback_data='main_menu')]
-    ]
-    
-    await query.edit_message_text(
-        faq_text,
-        parse_mode='Markdown',
-        reply_markup=InlineKeyboardMarkup(keyboard),
-        disable_web_page_preview=True
-    )
-
-
 def main_inline_keyboard():
     keyboard = [
         [InlineKeyboardButton("🚀 Get Listed", callback_data='get_listed'), InlineKeyboardButton("📅 ICOs & Calendar", callback_data='icos')],
-        [InlineKeyboardButton("📚 How Launches Work", callback_data='how_launches_work'), InlineKeyboardButton("🎯 Introduction to Futarchy", callback_data='futarchy_intro')],
-        [InlineKeyboardButton("📊 Proposals", callback_data='proposals'), InlineKeyboardButton("💼 For Entrepreneurs", callback_data='entrepreneurs')],
-        [InlineKeyboardButton("💰 For Investors", callback_data='investors'), InlineKeyboardButton("🎁 Redeem $MTN", callback_data='redeem_mtn')],
-        [InlineKeyboardButton("🔄 Redeem $META", callback_data='redeem_meta'), InlineKeyboardButton("💬 Support Request", callback_data='support_request')]
+        [InlineKeyboardButton("📚 How Launches Work", callback_data='how_launches_work')],
+        [InlineKeyboardButton("🎯 Introduction to Futarchy", callback_data='futarchy_intro')],
+        [InlineKeyboardButton("📊 Proposals", callback_data='proposals')],
+        [InlineKeyboardButton("💼 For Entrepreneurs", callback_data='entrepreneurs')],
+        [InlineKeyboardButton("💰 For Investors", callback_data='investors')],
+        [InlineKeyboardButton("💬 Support Request", callback_data='support_request')]
     ]
     return InlineKeyboardMarkup(keyboard)
 
@@ -444,7 +101,6 @@ def proposals_inline_keyboard():
     ]
     return InlineKeyboardMarkup(keyboard)
 
-# Initialize Google Sheets client
 def get_sheets_client(sheet_name='Support Requests'):
     try:
         if not GOOGLE_CREDENTIALS:
@@ -462,12 +118,12 @@ def get_sheets_client(sheet_name='Support Requests'):
             sheet = spreadsheet.add_worksheet(title=sheet_name, rows=1000, cols=50)
             
             if sheet_name == 'Support Requests':
-                # Horizontal layout with headers
+                # Horizontal layout with headers for Support Requests
                 headers = ['Timestamp', 'Name', 'Email', 'Question', 'Category', 'Subcategory']
                 sheet.append_row(headers)
                 logger.info(f"Created sheet '{sheet_name}' with horizontal layout")
             else:
-                # Vertical layout - no initial headers needed
+                # Vertical layout for Get Listed - no initial headers needed
                 logger.info(f"Created sheet '{sheet_name}' with vertical layout")
         
         return sheet
@@ -475,7 +131,6 @@ def get_sheets_client(sheet_name='Support Requests'):
         logger.error(f"Error setting up Google Sheets: {e}")
         return None
 
-# Function to log request to Google Sheets
 def log_request(name, email, question, category, subcategory=None, extra_data=None):
     sheet_name = 'Get Listed' if category == 'Get Listed' else 'Support Requests'
     sheet = get_sheets_client(sheet_name)
@@ -487,18 +142,15 @@ def log_request(name, email, question, category, subcategory=None, extra_data=No
             # Horizontal layout - append one row
             row = [timestamp, name, email, question, category, subcategory or '']
             sheet.append_row(row)
-            logger.info(f"Request logged horizontally to '{sheet_name}' sheet: {name}, {email}, {category}, {subcategory}")
+            logger.info(f"Request logged to '{sheet_name}' sheet: {name}, {email}, {category}, {subcategory}")
         else:
             # Vertical layout for Get Listed - append to next available column
-            # Get all values to find the next empty column
             all_values = sheet.get_all_values()
             
             # Find the next empty column (columns come in pairs: field name, value)
             next_col = 1  # Start at column A
             if all_values and len(all_values) > 0:
-                # Find the first row and check how many columns are filled
                 first_row = all_values[0]
-                # Count non-empty cells to find next available column
                 filled_cols = len([cell for cell in first_row if cell.strip()])
                 next_col = filled_cols + 1
             
@@ -532,7 +184,6 @@ def log_request(name, email, question, category, subcategory=None, extra_data=No
             
             # Write field names in column next_col and values in column next_col+1
             for row_idx, (field_name, field_value) in enumerate(fields, start=1):
-                # Update cell by cell in the next available column pair
                 sheet.update_cell(row_idx, next_col, field_name)
                 sheet.update_cell(row_idx, next_col + 1, field_value)
             
@@ -564,16 +215,13 @@ async def start_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         f"👋 *Welcome to MetaDAO, {user.first_name}!*\n\n"
         "I'm your MetaDAO assistant, here to help you navigate our platform.\n\n"
         "*What I can help you with:*\n"
-        "🚀 Get your project listed on MetaDAO\n"
         "📅 View upcoming ICOs and calendar\n"
         "📚 Learn about our launch process\n"
         "🎯 Understand futarchy governance\n"
         "💬 Submit support requests\n\n"
-        "*📖 Quick Links:*\n"
+        "📖 *Quick Links:*\n"
         "• Documentation: [docs.metadao.fi](https://docs.metadao.fi/)\n"
         "• Website: [metadao.fi](https://metadao.fi)\n\n"
-        "• Calendar: [idontbelieve.link](https://www.idontbelieve.link)\n\n"
-        "• Ca: METAwkXcqyXKy1AtsSgJ8JiUHwGCafnZL38n3vYmeta\n\n"
         "👇 *Select an option below to get started:*"
     )
     await update.message.reply_text(
@@ -675,21 +323,19 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         )
         return
 
-    # Handle main categories (excluding get_listed and support_request which are conversations)
+    # Handle main categories (excluding support_request which is a conversation)
     category_map = {
         'icos': ('📅 ICOs & Calendar', 'View all upcoming and active ICOs'),
         'how_launches_work': ('📚 How Launches Work', 'Learn about the MetaDAO launch process'),
         'futarchy_intro': ('🎯 Introduction to Futarchy', 'Understand futarchy governance'),
         'entrepreneurs': ('💼 For Entrepreneurs', 'Benefits and resources for project founders'),
         'investors': ('💰 For Investors', 'Investment opportunities and benefits'),
-        'redeem_mtn': ('🎁 Redeem $MTN Tokens', 'Redeem your $MTN tokens'),
-        'redeem_meta': ('🔄 Redeem $META Tokens', 'Migrate to the new $META contract'),
     }
     if data in category_map:
         title, description = category_map[data]
         link = RESOURCE_LINKS[data]
         await query.edit_message_text(
-            text=f"*{title}*\n\n{description}\n\n🔗 {link}",
+            text=f"*{title}*\n\n{description}\n\n🔗 [Learn More]({link})",
             parse_mode='Markdown',
             reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("⬅️ Back to Main Menu", callback_data='main_menu')]]),
             disable_web_page_preview=True
@@ -781,7 +427,7 @@ async def get_email(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     
     await update.message.reply_text(
         "✅ Perfect!\n\n"
-        "📝 *Step 3 of 3:* Please describe your *{subcategory.lower()}* request in detail:",
+        f"📝 *Step 3 of 3:* Please describe your *{subcategory.lower()}* in detail:",
         parse_mode='Markdown'
     )
     return QUESTION
@@ -817,6 +463,57 @@ async def get_question(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
     context.user_data['support_active'] = False
     return ConversationHandler.END
 
+
+async def ca_command_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    await update.message.reply_text(
+        "🪙 *META Contract Address*\n\n"
+        f"`{META_CA}`\n\n"
+        "💡 Tap to copy the address above",
+        parse_mode='Markdown'
+    )
+
+async def web_command_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    await update.message.reply_text(
+        "🌐 *MetaDAO Website*\n\n"
+        f"Visit us at: {RESOURCE_LINKS['website']}\n\n"
+        "Explore our platform, learn about futarchy, and discover upcoming projects!",
+        parse_mode='Markdown',
+        disable_web_page_preview=True
+    )
+
+async def docs_command_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    await update.message.reply_text(
+        "📚 *MetaDAO Documentation*\n\n"
+        f"Access our docs at: {RESOURCE_LINKS['docs']}\n\n"
+        "Find guides, tutorials, and detailed information about our platform.",
+        parse_mode='Markdown',
+        disable_web_page_preview=True
+    )
+
+async def icos_command_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    await update.message.reply_text(
+        "📅 *MetaDAO Calendar & ICOs*\n\n"
+        f"View all upcoming ICOs: {RESOURCE_LINKS['icos']}\n\n"
+        "Stay updated on the latest project launches and investment opportunities!",
+        parse_mode='Markdown',
+        disable_web_page_preview=True
+    )
+
+async def handle_ca(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    if update.effective_chat.type == 'private':
+        return
+    ca_variants = ["CA", "ca", "Ca"]
+    if update.message.text in ca_variants:
+        await update.message.reply_text(
+            f"🪙 *META Contract Address*\n\n`{META_CA}`\n\n💡 Tap to copy",
+            parse_mode='Markdown',
+            reply_markup=ReplyKeyboardRemove()
+        )
+
+async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    pass
+
+# --- Get Listed Conversation Handlers ---
 async def get_listed_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     query = update.callback_query
     await query.answer()
@@ -828,13 +525,19 @@ async def get_listed_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     
     await query.edit_message_text(
         "🚀 *Get Your Project Listed on MetaDAO*\n\n"
-        "Great choice! We'll guide you through the listing process.\n\n"
-        "*What you'll need:*\n"
-        "• Project details and description\n"
-        "• Token information\n"
-        "• Images and branding\n"
-        "• Financial details\n\n"
-        "⏱️ *Time required:* ~5 minutes\n\n"
+        "To get listed, you'll need to provide:\n\n"
+        "📝 *Project Information:*\n"
+        "• Project name and description (short & long versions)\n"
+        "• Token name and ticker\n\n"
+        "🖼️ *Visual Assets:*\n"
+        "• Project image and token image\n\n"
+        "💰 *Financial Details:*\n"
+        "• Minimum raise amount\n"
+        "• Monthly team budget (max 1/6th of minimum raise)\n"
+        "• Performance package configuration (optional, up to 15M tokens)\n\n"
+        "📜 *Legal:*\n"
+        "• Intellectual property list\n\n"
+        "⏱️ *Time required:* ~5-10 minutes\n\n"
         "Ready to begin?",
         parse_mode='Markdown',
         reply_markup=InlineKeyboardMarkup(keyboard)
@@ -848,9 +551,11 @@ async def get_listed_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE)
     if query.data == 'get_listed_yes':
         context.user_data['get_listed_active'] = True
         await query.edit_message_text(
-            "🎯 *Step 1 of 11: Project Overview*\n\n"
-            "Please provide your *project name* and a *short description* (1-2 sentences):\n\n"
-            "💡 *Example:* \"Umbra - A privacy-focused DeFi protocol enabling anonymous transactions on Solana.\"",
+            "🎯 *Step 1 of 11: Project Name & Short Description*\n\n"
+            "Please provide your *project name* and a *1-2 sentence description*:\n\n"
+            "💡 *Example:*\n"
+            "\"Umbra - A privacy-focused DeFi protocol enabling anonymous transactions on Solana.\"\n\n"
+            "This will be displayed on the MetaDAO site and trading venues.",
             parse_mode='Markdown'
         )
         return PROJECT_NAME_SHORT
@@ -869,7 +574,12 @@ async def get_project_name_short(update: Update, context: ContextTypes.DEFAULT_T
         "✅ Great start!\n\n"
         "📝 *Step 2 of 11: Detailed Description*\n\n"
         "Now provide a *longer, more detailed description* of your project:\n\n"
-        "💡 Include your mission, key features, and what makes you unique.",
+        "💡 *What to include:*\n"
+        "• Your mission and vision\n"
+        "• Key features and functionality\n"
+        "• What makes your project unique\n"
+        "• Why someone should want to participate in its upside\n\n"
+        "This will help potential investors understand your project's value proposition.",
         parse_mode='Markdown'
     )
     return PROJECT_DESC_LONG
@@ -882,7 +592,7 @@ async def get_project_desc_long(update: Update, context: ContextTypes.DEFAULT_TY
         "✅ Excellent!\n\n"
         "🪙 *Step 3 of 11: Token Name*\n\n"
         "What is your *token name*?\n\n"
-        "💡 *Example:* \"Umbra Token\"",
+        "💡 *Example:* \"Omnipair\" or \"Umbra Token\"",
         parse_mode='Markdown'
     )
     return TOKEN_NAME
@@ -895,7 +605,8 @@ async def get_token_name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         "✅ Got it!\n\n"
         "🏷️ *Step 4 of 11: Token Ticker*\n\n"
         "What is your *token ticker symbol*?\n\n"
-        "💡 *Example:* \"UMBRA\"",
+        "💡 *Recommendation:* Use a memorable and unique ticker\n"
+        "💡 *Example:* \"OMFG\" for Omnipair or \"UMBRA\"",
         parse_mode='Markdown'
     )
     return TOKEN_TICKER
@@ -908,7 +619,9 @@ async def get_token_ticker(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         "✅ Perfect!\n\n"
         "🖼️ *Step 5 of 11: Project Image*\n\n"
         "Please provide the *URL for your project image*:\n\n"
-        "💡 This should be your logo or main branding image (PNG, JPG, or SVG)",
+        "💡 This will be displayed on the MetaDAO site\n"
+        "💡 Supported formats: PNG, JPG, SVG\n"
+        "💡 Recommended size: 512x512px or larger",
         parse_mode='Markdown'
     )
     return PROJECT_IMAGE
@@ -921,6 +634,7 @@ async def get_project_image(update: Update, context: ContextTypes.DEFAULT_TYPE) 
         "✅ Image saved!\n\n"
         "🎨 *Step 6 of 11: Token Image*\n\n"
         "Please provide the *URL for your token image*:\n\n"
+        "💡 This will be displayed on trading venues like Jupiter\n"
         "💡 Type 'same' if it's the same as your project image",
         parse_mode='Markdown'
     )
@@ -936,8 +650,11 @@ async def get_token_image(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         context.user_data['token_image'] = token_image
     await update.message.reply_text(
         "✅ Looks good!\n\n"
-        "💵 *Step 7 of 11: Minimum Raise*\n\n"
+        "💵 *Step 7 of 11: Minimum Raise Amount*\n\n"
         "What is your *minimum raise amount*?\n\n"
+        "💡 This is how much your project needs to proceed\n"
+        "💡 If you raise less than this, the sale will be refunded\n"
+        "💡 Recommendation: Add buffer for unexpected expenses and the 20% liquidity provision\n\n"
         "💡 *Example:* \"$50,000\" or \"50000 USDC\"",
         parse_mode='Markdown'
     )
@@ -949,8 +666,12 @@ async def get_min_raise(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
     context.user_data['min_raise'] = update.message.text
     await update.message.reply_text(
         "✅ Noted!\n\n"
-        "📊 *Step 8 of 11: Monthly Budget*\n\n"
+        "📊 *Step 8 of 11: Monthly Team Budget*\n\n"
         "What is your *monthly team budget*?\n\n"
+        "💡 This is how much your team needs every month from the treasury to operate\n"
+        "💡 Spends larger than this need governance approval\n"
+        "💡 You can configure this later with governance\n"
+        "⚠️ *Important:* Cannot be larger than 1/6th of your minimum raise amount\n\n"
         "💡 *Example:* \"$10,000\"",
         parse_mode='Markdown'
     )
@@ -962,9 +683,19 @@ async def get_monthly_budget(update: Update, context: ContextTypes.DEFAULT_TYPE)
     context.user_data['monthly_budget'] = update.message.text
     await update.message.reply_text(
         "✅ Understood!\n\n"
-        "🎁 *Step 9 of 11: Performance Package*\n\n"
-        "What is your *performance package amount*?\n\n"
-        "💡 *Example:* \"$25,000\"",
+        "🎁 *Step 9 of 11: Performance Package Configuration*\n\n"
+        "How many tokens do you want to allocate to the *performance package*?\n\n"
+        "💡 *What is this?*\n"
+        "After ICO, 10M tokens go to sale participants and 5M to liquidity. You can pre-allocate up to 15M additional tokens to a performance package.\n\n"
+        "💡 *How it works:*\n"
+        "The package splits into 5 equal tranches that unlock at:\n"
+        "• 2x ICO price\n"
+        "• 4x ICO price\n"
+        "• 8x ICO price\n"
+        "• 16x ICO price\n"
+        "• 32x ICO price\n\n"
+        "💡 *Example:* \"10000000\" (10M tokens) or \"0\" (no performance package)\n\n"
+        "Type the number of tokens or '0' to skip:",
         parse_mode='Markdown'
     )
     return PERFORMANCE_PACKAGE
@@ -975,9 +706,15 @@ async def get_performance_package(update: Update, context: ContextTypes.DEFAULT_
     context.user_data['performance_package'] = update.message.text
     await update.message.reply_text(
         "✅ Great!\n\n"
-        "⏰ *Step 10 of 11: Unlock Time*\n\n"
+        "⏰ *Step 10 of 11: Minimum Unlock Time*\n\n"
         "What is the *minimum unlock time* for the performance package?\n\n"
-        "💡 *Example:* \"6 months\" or \"180 days\"",
+        "💡 *Requirements:*\n"
+        "• Must be at least 18 months from ICO date\n"
+        "• Can be longer if you wish\n"
+        "• Price is taken over a 3-month TWAP (Time-Weighted Average Price)\n"
+        "• This extends the true unlock date by 3 months beyond the minimum\n\n"
+        "💡 *Example:* \"18 months\" or \"24 months\"\n\n"
+        "Type 'skip' if you didn't allocate a performance package:",
         parse_mode='Markdown'
     )
     return PERFORMANCE_UNLOCK_TIME
@@ -989,8 +726,14 @@ async def get_performance_unlock_time(update: Update, context: ContextTypes.DEFA
     await update.message.reply_text(
         "✅ Almost done!\n\n"
         "📜 *Step 11 of 11: Intellectual Property*\n\n"
-        "Please list any *intellectual property* (patents, trademarks, etc.):\n\n"
-        "💡 Type 'none' if you don't have any",
+        "Please list the *intellectual property* that the founder(s) will give up to the project's entity:\n\n"
+        "💡 *This includes but is not limited to:*\n"
+        "• Domain names\n"
+        "• Software and code repositories\n"
+        "• Social media accounts\n"
+        "• Trademarks and patents\n"
+        "• Brand assets\n\n"
+        "💡 Type 'none' if you don't have any intellectual property to transfer",
         parse_mode='Markdown'
     )
     return INTELLECTUAL_PROPERTY
@@ -1040,7 +783,7 @@ async def get_intellectual_property(update: Update, context: ContextTypes.DEFAUL
         "1️⃣ Our team will review your submission\n"
         "2️⃣ We'll reach out if we need any additional information\n"
         "3️⃣ You'll receive a decision within 3-5 business days\n\n"
-        "📧 We'll contact you via Telegram or the email you provided.\n\n"
+        "📧 We'll contact you via Telegram or the contact information you provided.\n\n"
         "Thank you for choosing MetaDAO! 🚀",
         parse_mode='Markdown',
         reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🏠 Main Menu", callback_data='main_menu')]])
@@ -1060,239 +803,6 @@ async def get_listed_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) 
         )
         return ConversationHandler.END
     return ConversationHandler.END
-
-async def ca_command_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    await update.message.reply_text(
-        f"`{META_CA}`\n\n",
-        parse_mode='Markdown'
-    )
-
-async def web_command_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    await update.message.reply_text(
-        f"{RESOURCE_LINKS['website']}\n\n",
-        parse_mode='Markdown',
-        disable_web_page_preview=True
-    )
-
-async def docs_command_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    await update.message.reply_text(
-        f"{RESOURCE_LINKS['docs']}\n\n",
-        parse_mode='Markdown',
-        disable_web_page_preview=True
-    )
-
-async def icos_command_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    await update.message.reply_text(
-        f"{RESOURCE_LINKS['icos']}\n\n",
-        parse_mode='Markdown',
-        disable_web_page_preview=True
-    )
-
-async def redeem_mtn_command_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    await update.message.reply_text(
-        f"{RESOURCE_LINKS['redeem_mtn']}\n\n",
-        parse_mode='Markdown',
-        disable_web_page_preview=True
-    )
-
-async def redeem_meta_command_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    await update.message.reply_text(
-        f"{RESOURCE_LINKS['redeem_meta']}\n\n",
-        parse_mode='Markdown',
-        disable_web_page_preview=True
-    )
-
-async def handle_ca(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    if update.effective_chat.type == 'private':
-        return
-    ca_variants = ["CA", "ca", "Ca"]
-    if update.message.text in ca_variants:
-        await update.message.reply_text(
-            f"`{META_CA}`\n\n",
-            parse_mode='Markdown',
-            reply_markup=ReplyKeyboardRemove()
-        )
-
-def determine_context_type(message: str) -> str:
-    """
-    Determine the type of query based on message content
-    
-    Args:
-        message: User's message text
-    
-    Returns:
-        Context type string (faq, help, summarize, general)
-    """
-    message_lower = message.lower()
-    
-    # FAQ keywords
-    faq_keywords = ['what is', 'how do', 'how can', 'explain', 'tell me about', 'what are', 
-                    'futarchy', 'metadao', 'ico', 'proposal', 'token', 'launch']
-    if any(keyword in message_lower for keyword in faq_keywords):
-        return "faq"
-    
-    # Help/navigation keywords
-    help_keywords = ['help', 'how to', 'where', 'find', 'navigate', 'get started', 
-                     'i want to', 'i need', 'looking for']
-    if any(keyword in message_lower for keyword in help_keywords):
-        return "help"
-    
-    # Summarize keywords
-    summarize_keywords = ['summarize', 'summary', 'brief', 'overview', 'tldr']
-    if any(keyword in message_lower for keyword in summarize_keywords):
-        return "summarize"
-    
-    return "general"
-
-def get_contextual_keyboard(message: str) -> InlineKeyboardMarkup:
-    """
-    Generate contextual keyboard buttons based on user message
-    
-    Args:
-        message: User's message text
-    
-    Returns:
-        InlineKeyboardMarkup with relevant buttons
-    """
-    message_lower = message.lower()
-    
-    # Default buttons
-    buttons = []
-    
-    # ICO/Calendar related
-    if any(word in message_lower for word in ['ico', 'calendar', 'launch', 'upcoming', 'sale']):
-        buttons.append([InlineKeyboardButton("📅 View ICO Calendar", callback_data='icos')])
-    
-    # Listing related
-    if any(word in message_lower for word in ['list', 'launch', 'project', 'entrepreneur', 'founder']):
-        buttons.append([InlineKeyboardButton("🚀 Get Listed", callback_data='get_listed')])
-    
-    # Futarchy/Governance related
-    if any(word in message_lower for word in ['futarchy', 'governance', 'proposal', 'vote', 'decision']):
-        buttons.append([InlineKeyboardButton("🎯 Learn About Futarchy", callback_data='futarchy_intro')])
-        buttons.append([InlineKeyboardButton("📊 View Proposals", callback_data='proposals')])
-    
-    # Investment related
-    if any(word in message_lower for word in ['invest', 'buy', 'token', 'participate']):
-        buttons.append([InlineKeyboardButton("💰 For Investors", callback_data='investors')])
-    
-    # Redemption related
-    if any(word in message_lower for word in ['redeem', 'migrate', 'mtn', 'meta']):
-        buttons.append([InlineKeyboardButton("🎁 Redeem $MTN", callback_data='redeem_mtn')])
-        buttons.append([InlineKeyboardButton("🔄 Redeem $META", callback_data='redeem_meta')])
-    
-    # Always add main menu and support
-    if len(buttons) > 0:
-        buttons.append([InlineKeyboardButton("🏠 Main Menu", callback_data='main_menu')])
-    else:
-        # If no specific context, show main menu
-        buttons.append([InlineKeyboardButton("🏠 Main Menu", callback_data='main_menu')])
-        buttons.append([InlineKeyboardButton("💬 Contact Support", callback_data='support_request')])
-    
-    return InlineKeyboardMarkup(buttons)
-
-async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    # Use AI for general text messages if not a command or in a conversation
-    if update.effective_chat.type == 'private':
-        user_message = update.message.text
-        # Avoid responding to commands or while in a conversation
-        if not user_message.startswith('/') and not context.user_data.get('support_active') and not context.user_data.get('get_listed_active'):
-            faq = find_relevant_faq(user_message)
-            
-            if faq:
-                # Found a matching FAQ, provide structured answer
-                links_text = "\n\n📚 *Related Resources:*\n"
-                for link in faq['related_links']:
-                    links_text += f"• {link}\n"
-                
-                response_text = f"*{faq['question']}*\n\n{faq['answer']}{links_text}"
-                keyboard = get_contextual_keyboard(user_message)
-                
-                await update.message.reply_text(
-                    response_text,
-                    parse_mode='Markdown',
-                    disable_web_page_preview=True,
-                    reply_markup=keyboard
-                )
-            else:
-                # No FAQ match, use AI
-                context_type = determine_context_type(user_message)
-                ai_response = await get_ai_response(user_message, context_type=context_type)
-                
-                # Add helpful buttons based on context
-                keyboard = get_contextual_keyboard(user_message)
-                
-                await update.message.reply_text(
-                    ai_response, 
-                    parse_mode='Markdown', 
-                    disable_web_page_preview=True,
-                    reply_markup=keyboard
-                )
-    pass
-
-async def get_ai_response(user_message: str, context_type: str = "general") -> str:
-    """
-    Generate AI response using Groq
-    
-    Args:
-        user_message: The user's question or message
-        context_type: Type of context (general, faq, summarize, help)
-    
-    Returns:
-        AI-generated response string
-    """
-    if not groq_client:
-        return "AI features are currently unavailable. Please use the menu buttons or contact support."
-    
-    try:
-        # Build system prompt based on context type
-        if context_type == "faq":
-            system_prompt = f"""You are a helpful MetaDAO assistant. Answer questions about MetaDAO concisely and accurately.
-Use this knowledge base:
-
-{METADAO_KNOWLEDGE}
-
-Keep answers brief (2-3 sentences) and include relevant links when helpful.
-If you don't know something, say so and suggest using the menu or contacting support."""
-        
-        elif context_type == "summarize":
-            system_prompt = """You are a helpful assistant that summarizes documentation clearly and concisely.
-Provide a brief summary in 2-3 sentences that captures the key points."""
-        
-        elif context_type == "help":
-            system_prompt = f"""You are a helpful MetaDAO assistant that guides users to the right resources.
-Based on the user's intent, suggest relevant actions or menu options.
-
-Available resources:
-{METADAO_KNOWLEDGE}
-
-Be conversational and helpful. Suggest specific menu buttons or commands when appropriate."""
-        
-        else:  # general
-            system_prompt = f"""You are a helpful MetaDAO assistant. Answer questions about MetaDAO clearly and concisely.
-
-{METADAO_KNOWLEDGE}
-
-Keep responses brief and friendly. Include relevant links when helpful."""
-        
-        # Call Groq API
-        chat_completion = groq_client.chat.completions.create(
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_message}
-            ],
-            model="llama-3.3-70b-versatile",
-            temperature=0.7,
-            max_tokens=500
-        )
-        
-        response = chat_completion.choices[0].message.content
-        logger.info(f"AI response generated for context: {context_type}")
-        return response
-        
-    except Exception as e:
-        logger.error(f"Error generating AI response: {e}")
-        return "I'm having trouble processing that right now. Please try using the menu buttons or contact support."
 
 _initialized = False
 _application = None
@@ -1349,20 +859,15 @@ async def get_application():
         _application.add_handler(CommandHandler('start', start_handler, filters=filters.ChatType.PRIVATE))
         _application.add_handler(CommandHandler('help', help_handler, filters=filters.ChatType.PRIVATE))
         _application.add_handler(CommandHandler('cancel', cancel_handler, filters=filters.ChatType.PRIVATE))
-        _application.add_handler(CommandHandler('faq', faq_command_handler, filters=filters.ChatType.PRIVATE))
         
         _application.add_handler(CommandHandler('ca', ca_command_handler))
         _application.add_handler(CommandHandler('web', web_command_handler))
         _application.add_handler(CommandHandler('docs', docs_command_handler))
         _application.add_handler(CommandHandler('icos', icos_command_handler))
-        _application.add_handler(CommandHandler('redeem_mtn', redeem_mtn_command_handler))
-        _application.add_handler(CommandHandler('redeem_meta', redeem_meta_command_handler))
         
         _application.add_handler(get_listed_conv_handler)
         _application.add_handler(conv_handler)
-        _application.add_handler(CallbackQueryHandler(faq_button_handler, pattern='^faq_'))
-        _application.add_handler(CallbackQueryHandler(show_faq_menu_handler, pattern='^show_faq_menu$'))
-        _application.add_handler(CallbackQueryHandler(button_handler, pattern='^(?!get_listed$|support_request$|faq_|show_faq_menu$)'))
+        _application.add_handler(CallbackQueryHandler(button_handler, pattern='^(?!get_listed$|support_request$)'))
         _application.add_handler(MessageHandler(filters.Regex(r'^(CA|ca|Ca)$'), handle_ca))
         _application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, text_handler))
         _application.add_handler(MessageHandler(filters.COMMAND, text_handler))
@@ -1377,7 +882,6 @@ async def get_application():
         private_commands = [
             BotCommand("start", "Start the bot and show main menu"),
             BotCommand("help", "Show help information"),
-            BotCommand("faq", "View frequently asked questions"),
             BotCommand("cancel", "Cancel current operation")
         ]
         await _application.bot.set_my_commands(private_commands, scope=BotCommandScopeAllPrivateChats())
@@ -1387,9 +891,7 @@ async def get_application():
             BotCommand("ca", "Get META contract address"),
             BotCommand("web", "Get MetaDAO website link"),
             BotCommand("docs", "Get documentation link"),
-            BotCommand("icos", "Get calendar and ICOs link"),
-            BotCommand("redeem_mtn", "Redeem $MTN Tokens"),
-            BotCommand("redeem_meta", "Redeem $META Tokens")
+            BotCommand("icos", "Get calendar and ICOs link")
         ]
         await _application.bot.set_my_commands(group_commands, scope=BotCommandScopeAllGroupChats())
         
