@@ -1,4 +1,5 @@
 python-telegram-bot==21.4
+telethon==1.36.0
 gspread==6.1.2
 groq>=0.32.0
 google-auth==2.35.0
