@@ -172,7 +172,8 @@ def log_request(name, email, question, category, subcategory=None, extra_data=No
                     ('Monthly Budget', extra_data.get('monthly_budget', '')),
                     ('Performance Package', extra_data.get('performance_package', '')),
                     ('Performance Unlock Time', extra_data.get('performance_unlock_time', '')),
-                    ('Intellectual Property', extra_data.get('intellectual_property', ''))
+                    ('Intellectual Property', extra_data.get('intellectual_property', '')),
+                    ('Telegram Group Link', extra_data.get('telegram_group_link', ''))
                 ]
             else:
                 fields = [
@@ -191,6 +192,38 @@ def log_request(name, email, question, category, subcategory=None, extra_data=No
             logger.info(f"Request logged vertically to '{sheet_name}' sheet in columns {next_col}-{next_col+1}: {name}, {category}")
     else:
         logger.warning("Could not log to Google Sheets - client not available")
+
+async def create_project_group(context: ContextTypes.DEFAULT_TYPE, project_name: str) -> str:
+    """
+    Creates a Telegram group for the project and returns the invite link.
+    
+    Args:
+        context: The bot context
+        project_name: Name of the project
+    
+    Returns:
+        The invite link to the created group, or None if creation failed
+    """
+    try:
+        # Create the group with the project name
+        group_name = f"{project_name} <> MetaDAO"
+        
+        # Create the group (bot must have permission to create groups)
+        chat = await context.bot.create_group(
+            title=group_name,
+            description=f"Official discussion group for {project_name} on MetaDAO"
+        )
+        
+        # Generate an invite link
+        invite_link = await context.bot.export_chat_invite_link(chat.id)
+        
+        logger.info(f"Created group '{group_name}' with invite link: {invite_link}")
+        
+        return invite_link
+        
+    except Exception as e:
+        logger.error(f"Error creating project group: {e}")
+        return None
 
 async def forward_to_support(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if SUPPORT_CHAT_ID:
@@ -430,7 +463,7 @@ async def get_email(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     
     await update.message.reply_text(
         "✅ Perfect!\n\n"
-        "📝 *Step 3 of 3:* Please describe your *{subcategory.lower()}* in detail:",
+        f"📝 *Step 3 of 3:* Please describe your *{subcategory.lower()}* in detail:",
         parse_mode='Markdown'
     )
     return QUESTION
@@ -847,8 +880,15 @@ async def get_intellectual_property(update: Update, context: ContextTypes.DEFAUL
         context.user_data.clear()
         return ConversationHandler.END
     
-    # Prepare extra_data for logging
+    # Extract project name for group creation
+    project_name = context.user_data.get('project_name_short', 'Unknown Project').split(' - ')[0]
+    
+    # Create Telegram group for the project
+    group_invite_link = await create_project_group(context, project_name)
+    
+    # Prepare extra_data for logging (now includes the group link)
     extra_data = {k: context.user_data.get(k, '') for k in required_fields}
+    extra_data['telegram_group_link'] = group_invite_link or 'Failed to create group'
     
     # Log to Google Sheets
     log_request(
@@ -859,15 +899,31 @@ async def get_intellectual_property(update: Update, context: ContextTypes.DEFAUL
         extra_data=extra_data
     )
     
-    await update.message.reply_text(
+    # Build success message with group link
+    success_message = (
         "🎉 *Submission Complete!*\n\n"
         "Congratulations! Your project listing has been submitted successfully.\n\n"
+    )
+    
+    if group_invite_link:
+        success_message += (
+            f"📱 *Your Project Group*\n"
+            f"We've created a dedicated Telegram group for your project:\n"
+            f"{group_invite_link}\n\n"
+            f"Join to coordinate with the MetaDAO team!\n\n"
+        )
+    
+    success_message += (
         "*What happens next:*\n"
         "1️⃣ Our team will review your submission\n"
         "2️⃣ We'll reach out if we need any additional information\n"
         "3️⃣ You'll receive a decision within 3-5 business days\n\n"
         "📧 We'll contact you via Telegram or the contact information you provided.\n\n"
-        "Thank you for choosing MetaDAO! 🚀",
+        "Thank you for choosing MetaDAO! 🚀"
+    )
+    
+    await update.message.reply_text(
+        success_message,
         parse_mode='Markdown',
         reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🏠 Main Menu", callback_data='main_menu')]])
     )
