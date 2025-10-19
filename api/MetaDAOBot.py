@@ -13,6 +13,7 @@ import asyncio
 # Telethon for group creation (MTProto API)
 try:
     from telethon import TelegramClient
+    from telethon.sessions import StringSession
     from telethon.tl.functions.messages import CreateChatRequest
     from telethon.tl.functions.channels import CreateChannelRequest
     TELETHON_AVAILABLE = True
