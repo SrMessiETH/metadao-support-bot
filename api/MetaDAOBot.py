@@ -29,6 +29,7 @@ BOT_TOKEN = os.environ.get('BOT_TOKEN')
 if not BOT_TOKEN:
     raise ValueError("BOT_TOKEN env var is required")
 SUPPORT_CHAT_ID = int(os.environ.get('SUPPORT_CHAT_ID', 0)) if os.environ.get('SUPPORT_CHAT_ID') else None
+ADMIN_USER_ID = int(os.environ.get('ADMIN_USER_ID', 0)) if os.environ.get('ADMIN_USER_ID') else None
 SHEET_NAME = os.environ.get('SHEET_NAME', 'MetaDAO Support Requests')
 
 # Google Sheets setup
@@ -193,37 +194,51 @@ def log_request(name, email, question, category, subcategory=None, extra_data=No
     else:
         logger.warning("Could not log to Google Sheets - client not available")
 
-async def create_project_group(context: ContextTypes.DEFAULT_TYPE, project_name: str) -> str:
+async def notify_admin_for_group_creation(context: ContextTypes.DEFAULT_TYPE, project_name: str, founder_username: str, founder_id: int) -> str:
     """
-    Creates a Telegram group for the project and returns the invite link.
+    Notifies the admin to manually create a Telegram group for the project.
+    Returns a placeholder message for the group link.
     
     Args:
         context: The bot context
         project_name: Name of the project
+        founder_username: Username of the founder
+        founder_id: User ID of the founder
     
     Returns:
-        The invite link to the created group, or None if creation failed
+        A placeholder message indicating group creation is pending
     """
     try:
-        # Create the group with the project name
-        group_name = f"{project_name} <> MetaDAO"
-        
-        # Create the group (bot must have permission to create groups)
-        chat = await context.bot.create_group(
-            title=group_name,
-            description=f"Official discussion group for {project_name} on MetaDAO"
-        )
-        
-        # Generate an invite link
-        invite_link = await context.bot.export_chat_invite_link(chat.id)
-        
-        logger.info(f"Created group '{group_name}' with invite link: {invite_link}")
-        
-        return invite_link
-        
+        if ADMIN_USER_ID:
+            group_name = f"{project_name} <> MetaDAO"
+            admin_message = (
+                f"🚀 New Project Listing: {project_name}\n\n"
+                f"Please create a Telegram group with the following details:\n\n"
+                f"Group Name: {group_name}\n"
+                f"Founder: @{founder_username} (ID: {founder_id})\n\n"
+                f"Steps:\n"
+                f"1. Create a new group named '{group_name}'\n"
+                f"2. Add @{founder_username} to the group\n"
+                f"3. Add this bot to the group\n"
+                f"4. Send the invite link to the founder\n"
+                f"5. Update the Google Sheet with the group link"
+            )
+            
+            await context.bot.send_message(
+                chat_id=ADMIN_USER_ID,
+                text=admin_message,
+                parse_mode='Markdown'
+            )
+            
+            logger.info(f"Notified admin to create group for project: {project_name}")
+            return "Pending - Admin will create group and share link"
+        else:
+            logger.warning("ADMIN_USER_ID not set - cannot notify admin for group creation")
+            return "Group creation requires manual setup"
+            
     except Exception as e:
-        logger.error(f"Error creating project group: {e}")
-        return None
+        logger.error(f"Error notifying admin for group creation: {e}")
+        return "Failed to request group creation"
 
 async def forward_to_support(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if SUPPORT_CHAT_ID:
@@ -880,44 +895,42 @@ async def get_intellectual_property(update: Update, context: ContextTypes.DEFAUL
         context.user_data.clear()
         return ConversationHandler.END
     
-    # Extract project name for group creation
+    # Extract project name and founder info
     project_name = context.user_data.get('project_name_short', 'Unknown Project').split(' - ')[0]
+    founder_username = update.effective_user.username or 'no_username'
+    founder_id = update.effective_user.id
     
-    # Create Telegram group for the project
-    group_invite_link = await create_project_group(context, project_name)
+    # Notify admin to create group (since bots can't create groups directly)
+    group_status = await notify_admin_for_group_creation(context, project_name, founder_username, founder_id)
     
-    # Prepare extra_data for logging (now includes the group link)
+    # Prepare extra_data for logging
     extra_data = {k: context.user_data.get(k, '') for k in required_fields}
-    extra_data['telegram_group_link'] = group_invite_link or 'Failed to create group'
+    extra_data['telegram_group_link'] = group_status
+    extra_data['founder_username'] = founder_username
+    extra_data['founder_id'] = founder_id
     
     # Log to Google Sheets
     log_request(
         context.user_data['project_name_short'],
         update.effective_user.username or str(update.effective_user.id),
-        None,  # No question for get listed
+        None,
         'Get Listed',
         extra_data=extra_data
     )
     
-    # Build success message with group link
+    # Build success message
     success_message = (
         "🎉 *Submission Complete!*\n\n"
         "Congratulations! Your project listing has been submitted successfully.\n\n"
-    )
-    
-    if group_invite_link:
-        success_message += (
-            f"📱 *Your Project Group*\n"
-            f"We've created a dedicated Telegram group for your project:\n"
-            f"{group_invite_link}\n\n"
-            f"Join to coordinate with the MetaDAO team!\n\n"
-        )
-    
-    success_message += (
+        "📱 *Your Project Group*\n"
+        "Our team will create a dedicated Telegram group for your project:\n"
+        f"*{project_name} <> MetaDAO*\n\n"
+        "You'll receive an invite link shortly to coordinate with the MetaDAO team.\n\n"
         "*What happens next:*\n"
         "1️⃣ Our team will review your submission\n"
-        "2️⃣ We'll reach out if we need any additional information\n"
-        "3️⃣ You'll receive a decision within 3-5 business days\n\n"
+        "2️⃣ We'll create your project group and send you the invite link\n"
+        "3️⃣ We'll reach out if we need any additional information\n"
+        "4️⃣ You'll receive a decision within 3-5 business days\n\n"
         "📧 We'll contact you via Telegram or the contact information you provided.\n\n"
         "Thank you for choosing MetaDAO! 🚀"
     )
