@@ -220,26 +220,31 @@ async def get_telethon_client():
         return None
     
     if not all([TELEGRAM_API_ID, TELEGRAM_API_HASH, TELEGRAM_SESSION_STRING]):
-        logger.error("Telethon credentials not configured")
+        logger.error("Telethon credentials not configured (API_ID, API_HASH, or SESSION_STRING missing)")
         return None
     
     if _telethon_client is None or not _telethon_client.is_connected():
         try:
+            # Use StringSession for serverless environments (no file system access needed)
+            session = StringSession(TELEGRAM_SESSION_STRING)
+            
             _telethon_client = TelegramClient(
-                'metadao_bot_session',
+                session,
                 int(TELEGRAM_API_ID),
                 TELEGRAM_API_HASH
             )
             
-            # Use session string if available
-            if TELEGRAM_SESSION_STRING:
-                await _telethon_client.start(session=TELEGRAM_SESSION_STRING)
-            else:
-                await _telethon_client.start()
+            await _telethon_client.connect()
+            
+            if not await _telethon_client.is_user_authorized():
+                logger.error("Telethon session is not authorized - regenerate TELEGRAM_SESSION_STRING")
+                return None
             
             logger.info("Telethon client connected successfully")
         except Exception as e:
             logger.error(f"Failed to connect Telethon client: {e}")
+            import traceback
+            traceback.print_exc()
             return None
     
     return _telethon_client
