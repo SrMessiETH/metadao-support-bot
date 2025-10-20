@@ -89,25 +89,26 @@ PROJECT_INFO = {
 META_CA = 'METAwkXcqyXKy1AtsSgJ8JiUHwGCafnZL38n3vYmeta'
 
 def main_inline_keyboard():
+    # Pad button texts to make them visually similar in length
     keyboard = [
-        [InlineKeyboardButton("🚀 Get Listed", callback_data='get_listed')],
-        [InlineKeyboardButton("📅 ICOs & Calendar", callback_data='icos')],
-        [InlineKeyboardButton("📚 How Launches Work", callback_data='how_launches_work')],
+        [InlineKeyboardButton("🚀 Get Listed            ", callback_data='get_listed')],
+        [InlineKeyboardButton("📅 ICOs & Calendar       ", callback_data='icos')],
+        [InlineKeyboardButton("📚 How Launches Work     ", callback_data='how_launches_work')],
         [InlineKeyboardButton("🎯 Introduction to Futarchy", callback_data='futarchy_intro')],
-        [InlineKeyboardButton("📊 Proposals", callback_data='proposals')],
-        [InlineKeyboardButton("💼 For Entrepreneurs", callback_data='entrepreneurs')],
-        [InlineKeyboardButton("💰 For Investors", callback_data='investors')],
-        [InlineKeyboardButton("💬 Support Request", callback_data='support_request')]
+        [InlineKeyboardButton("📊 Proposals             ", callback_data='proposals')],
+        [InlineKeyboardButton("💼 For Entrepreneurs     ", callback_data='entrepreneurs')],
+        [InlineKeyboardButton("💰 For Investors         ", callback_data='investors')],
+        [InlineKeyboardButton("💬 Support Request       ", callback_data='support_request')]
     ]
     return InlineKeyboardMarkup(keyboard)
 
 def proposals_inline_keyboard():
     keyboard = [
-        [InlineKeyboardButton("✍️ Creating Proposals", callback_data='proposals_create')],
-        [InlineKeyboardButton("📈 Trading Proposals", callback_data='proposals_trade')],
-        [InlineKeyboardButton("✅ Finalizing Proposals", callback_data='proposals_finalize')],
-        [InlineKeyboardButton("📊 View Markets", url='https://v1.metadao.fi/markets')],
-        [InlineKeyboardButton("⬅️ Back to Main Menu", callback_data='main_menu')]
+        [InlineKeyboardButton("✍️ Creating Proposals    ", callback_data='proposals_create')],
+        [InlineKeyboardButton("📈 Trading Proposals     ", callback_data='proposals_trade')],
+        [InlineKeyboardButton("✅ Finalizing Proposals  ", callback_data='proposals_finalize')],
+        [InlineKeyboardButton("📊 View Markets          ", url='https://v1.metadao.fi/markets')],
+        [InlineKeyboardButton("⬅️ Back to Main Menu    ", callback_data='main_menu')]
     ]
     return InlineKeyboardMarkup(keyboard)
 
@@ -321,7 +322,7 @@ async def help_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     await update.message.reply_text(
         help_text,
         parse_mode='Markdown',
-        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Main Menu", callback_data='main_menu')]])
+        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🏠 Main Menu", callback_data='main_menu')]])
     )
 
 async def cancel_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -355,10 +356,25 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     chat_id = query.message.chat_id
 
     if data == 'main_menu':
+        # Use the same welcome text as start_handler for consistency
+        welcome_text = (
+            f"👋 *Welcome to MetaDAO, {update.effective_user.first_name}!*\n\n"
+            "I'm your MetaDAO assistant, here to help you navigate our platform.\n\n"
+            "What I can help you with:\n"
+            "📅 View upcoming ICOs and calendar\n"
+            "📚 Learn about our launch process\n"
+            "🎯 Understand futarchy governance\n"
+            "💬 Submit support requests\n\n"
+            "📖 *Quick Links:*\n"
+            "• Documentation: [docs.metadao.fi](https://docs.metadao.fi/)\n"
+            "• Website: [metadao.fi](https://metadao.fi)\n\n"
+            "👇 *Select an option below to get started:*"
+        )
         await query.edit_message_text(
-            text="🏠 *Main Menu*\n\nSelect an option below:",
+            text=welcome_text,
             parse_mode='Markdown',
-            reply_markup=main_inline_keyboard()
+            reply_markup=main_inline_keyboard(),
+            disable_web_page_preview=True
         )
         return
 
