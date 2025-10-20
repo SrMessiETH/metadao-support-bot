@@ -10,17 +10,6 @@ from google.oauth2.service_account import Credentials
 from http.server import BaseHTTPRequestHandler
 import asyncio
 
-# Telethon for group creation (MTProto API)
-try:
-    from telethon import TelegramClient
-    from telethon.sessions import StringSession
-    from telethon.tl.functions.messages import CreateChatRequest
-    from telethon.tl.functions.channels import CreateChannelRequest
-    TELETHON_AVAILABLE = True
-except ImportError:
-    TELETHON_AVAILABLE = False
-    logging.warning("Telethon not available - group creation will be disabled")
-
 # Enable logging
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -31,9 +20,7 @@ logger = logging.getLogger(__name__)
 # States for support conversation
 SUPPORT_CATEGORY, NAME, EMAIL, QUESTION = range(4)
 
-# States for get listed conversation
-GET_LISTED_CONFIRM, PROJECT_NAME_SHORT, PROJECT_DESC_LONG, TOKEN_NAME, TOKEN_TICKER, PROJECT_IMAGE, TOKEN_IMAGE, MIN_RAISE, MONTHLY_BUDGET, PERFORMANCE_PACKAGE, PERFORMANCE_UNLOCK_TIME, INTELLECTUAL_PROPERTY = range(12, 24)
-
+GET_LISTED_CONFIRM, GET_LISTED_NAME, GET_LISTED_EMAIL, GET_LISTED_PROJECT = range(12, 16)
 
 # Secrets from env vars
 BOT_TOKEN = os.environ.get('BOT_TOKEN')
@@ -41,11 +28,6 @@ if not BOT_TOKEN:
     raise ValueError("BOT_TOKEN env var is required")
 SUPPORT_CHAT_ID = int(os.environ.get('SUPPORT_CHAT_ID', 0)) if os.environ.get('SUPPORT_CHAT_ID') else None
 SHEET_NAME = os.environ.get('SHEET_NAME', 'MetaDAO Support Requests')
-
-# Telethon credentials for group creation
-TELEGRAM_API_ID = os.environ.get('TELEGRAM_API_ID')
-TELEGRAM_API_HASH = os.environ.get('TELEGRAM_API_HASH')
-TELEGRAM_SESSION_STRING = os.environ.get('TELEGRAM_SESSION_STRING')
 
 # Google Sheets setup
 GOOGLE_CREDENTIALS_JSON = os.environ.get('GOOGLE_CREDENTIALS')
@@ -95,9 +77,6 @@ PROJECT_INFO = {
     }
 }
 META_CA = 'METAwkXcqyXKy1AtsSgJ8JiUHwGCafnZL38n3vYmeta'
-
-# Global Telethon client
-_telethon_client = None
 
 def main_inline_keyboard():
     keyboard = [
@@ -174,25 +153,13 @@ def log_request(name, email, question, category, subcategory=None, extra_data=No
                 filled_cols = len([cell for cell in first_row if cell.strip()])
                 next_col = filled_cols + 1
             
-            # Prepare data to write vertically
             if extra_data:
                 fields = [
                     ('Timestamp', timestamp),
-                    ('Project Name', name),
-                    ('Contact', email),
-                    ('Category', category),
-                    ('Project Name Short', extra_data.get('project_name_short', '')),
-                    ('Project Description', extra_data.get('project_desc_long', '')),
-                    ('Token Name', extra_data.get('token_name', '')),
-                    ('Token Ticker', extra_data.get('token_ticker', '')),
-                    ('Project Image', extra_data.get('project_image', '')),
-                    ('Token Image', extra_data.get('token_image', '')),
-                    ('Min Raise', extra_data.get('min_raise', '')),
-                    ('Monthly Budget', extra_data.get('monthly_budget', '')),
-                    ('Performance Package', extra_data.get('performance_package', '')),
-                    ('Performance Unlock Time', extra_data.get('performance_unlock_time', '')),
-                    ('Intellectual Property', extra_data.get('intellectual_property', '')),
-                    ('Telegram Group Link', extra_data.get('telegram_group_link', ''))
+                    ('Name', name),
+                    ('Email', email),
+                    ('Project Name', extra_data.get('project_name', '')),
+                    ('Category', category)
                 ]
             else:
                 fields = [
@@ -211,110 +178,6 @@ def log_request(name, email, question, category, subcategory=None, extra_data=No
             logger.info(f"Request logged vertically to '{sheet_name}' sheet in columns {next_col}-{next_col+1}: {name}, {category}")
     else:
         logger.warning("Could not log to Google Sheets - client not available")
-
-async def get_telethon_client():
-    """Get or create Telethon client for group creation"""
-    global _telethon_client
-    
-    if not TELETHON_AVAILABLE:
-        logger.error("Telethon library not available")
-        return None
-    
-    if not all([TELEGRAM_API_ID, TELEGRAM_API_HASH, TELEGRAM_SESSION_STRING]):
-        logger.error("Telethon credentials not configured (API_ID, API_HASH, or SESSION_STRING missing)")
-        return None
-    
-    if _telethon_client is None or not _telethon_client.is_connected():
-        try:
-            # Use StringSession for serverless environments (no file system access needed)
-            session = StringSession(TELEGRAM_SESSION_STRING)
-            
-            _telethon_client = TelegramClient(
-                session,
-                int(TELEGRAM_API_ID),
-                TELEGRAM_API_HASH
-            )
-            
-            await _telethon_client.connect()
-            
-            if not await _telethon_client.is_user_authorized():
-                logger.error("Telethon session is not authorized - regenerate TELEGRAM_SESSION_STRING")
-                return None
-            
-            logger.info("Telethon client connected successfully")
-        except Exception as e:
-            logger.error(f"Failed to connect Telethon client: {e}")
-            import traceback
-            traceback.print_exc()
-            return None
-    
-    return _telethon_client
-
-async def create_project_group(context: ContextTypes.DEFAULT_TYPE, project_name: str, founder_username: str) -> str:
-    """
-    Creates a Telegram group using Telethon (MTProto API) and returns the invite link.
-    
-    Args:
-        context: The bot context
-        project_name: Name of the project
-        founder_username: Username of the founder to add to the group
-    
-    Returns:
-        The invite link to the created group, or None if creation failed
-    """
-    try:
-        client = await get_telethon_client()
-        if not client:
-            logger.error("Telethon client not available for group creation")
-            return None
-        
-        group_name = f"{project_name} <> MetaDAO"
-        
-        # Create a basic group (not supergroup/channel)
-        # Note: We need to add at least one user to create a group
-        # We'll add the founder by username
-        try:
-            # Resolve the founder's username to get their user entity
-            founder_entity = await client.get_entity(founder_username)
-            
-            # Create the group with the founder
-            result = await client(CreateChatRequest(
-                users=[founder_entity],
-                title=group_name
-            ))
-            
-            # Get the chat ID from the result
-            chat_id = result.chats[0].id
-            
-            # Export invite link
-            from telethon.tl.functions.messages import ExportChatInviteRequest
-            invite = await client(ExportChatInviteRequest(chat_id))
-            invite_link = invite.link
-            
-            # Add the bot to the group
-            bot_username = (await context.bot.get_me()).username
-            try:
-                bot_entity = await client.get_entity(bot_username)
-                from telethon.tl.functions.messages import AddChatUserRequest
-                await client(AddChatUserRequest(
-                    chat_id=chat_id,
-                    user_id=bot_entity,
-                    fwd_limit=0
-                ))
-                logger.info(f"Added bot @{bot_username} to group '{group_name}'")
-            except Exception as e:
-                logger.warning(f"Could not add bot to group: {e}")
-            
-            logger.info(f"Created group '{group_name}' with invite link: {invite_link}")
-            return invite_link
-            
-        except Exception as e:
-            logger.error(f"Error creating group with Telethon: {e}")
-            return None
-            
-    except Exception as e:
-        logger.error(f"Error in create_project_group: {e}")
-        return None
 
 async def forward_to_support(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if SUPPORT_CHAT_ID:
@@ -590,7 +453,6 @@ async def get_question(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
     context.user_data['support_active'] = False
     return ConversationHandler.END
 
-
 async def ca_command_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await update.message.reply_text(
         "🪙 *META Contract Address*\n\n"
@@ -705,7 +567,6 @@ async def github_command_handler(update: Update, context: ContextTypes.DEFAULT_T
         disable_web_page_preview=True
     )
 
-
 async def handle_ca(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if update.effective_chat.type == 'private':
         return
@@ -720,7 +581,6 @@ async def handle_ca(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     pass
 
-# --- Get Listed Conversation Handlers ---
 async def get_listed_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     query = update.callback_query
     await query.answer()
@@ -732,19 +592,8 @@ async def get_listed_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     
     await query.edit_message_text(
         "🚀 *Get Your Project Listed on MetaDAO*\n\n"
-        "To get listed, you'll need to provide:\n\n"
-        "📝 *Project Information:*\n"
-        "• Project name and description (short & long versions)\n"
-        "• Token name and ticker\n\n"
-        "🖼️ *Visual Assets:*\n"
-        "• Project image and token image\n\n"
-        "💰 *Financial Details:*\n"
-        "• Minimum raise amount\n"
-        "• Monthly team budget (max 1/6th of minimum raise)\n"
-        "• Performance package configuration (optional, up to 15M tokens)\n\n"
-        "📜 *Legal:*\n"
-        "• Intellectual property list\n\n"
-        "⏱️ *Time required:* ~5-10 minutes\n\n"
+        "To get listed, we'll need some basic information about you and your project.\n\n"
+        "⏱️ *Time required:* ~2 minutes\n\n"
         "Ready to begin?",
         parse_mode='Markdown',
         reply_markup=InlineKeyboardMarkup(keyboard)
@@ -758,14 +607,11 @@ async def get_listed_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE)
     if query.data == 'get_listed_yes':
         context.user_data['get_listed_active'] = True
         await query.edit_message_text(
-            "🎯 *Step 1 of 11: Project Name & Short Description*\n\n"
-            "Please provide your *project name* and a *1-2 sentence description*:\n\n"
-            "💡 *Example:*\n"
-            "\"Umbra - A privacy-focused DeFi protocol enabling anonymous transactions on Solana.\"\n\n"
-            "This will be displayed on the MetaDAO site and trading venues.",
+            "📝 *Step 1 of 3: Your Name*\n\n"
+            "Please provide your full name:",
             parse_mode='Markdown'
         )
-        return PROJECT_NAME_SHORT
+        return GET_LISTED_NAME
     else:
         await query.edit_message_text(
             "👍 No problem! Feel free to come back anytime.",
@@ -773,259 +619,55 @@ async def get_listed_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE)
         )
         return ConversationHandler.END
 
-async def get_project_name_short(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+async def get_listed_name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     if not context.user_data.get('get_listed_active'):
         return ConversationHandler.END
-    context.user_data['project_name_short'] = update.message.text
+    context.user_data['name'] = update.message.text
     await update.message.reply_text(
-        "✅ Great start!\n\n"
-        "📝 *Step 2 of 11: Detailed Description*\n\n"
-        "Now provide a *longer, more detailed description* of your project:\n\n"
-        "💡 *What to include:*\n"
-        "• Your mission and vision\n"
-        "• Key features and functionality\n"
-        "• What makes your project unique\n"
-        "• Why someone should want to participate in its upside\n\n"
-        "This will help potential investors understand your project's value proposition.",
+        f"✅ Got it, *{update.message.text}*!\n\n"
+        "📧 *Step 2 of 3:* Please provide your email address:",
         parse_mode='Markdown'
     )
-    return PROJECT_DESC_LONG
+    return GET_LISTED_EMAIL
 
-async def get_project_desc_long(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+async def get_listed_email(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     if not context.user_data.get('get_listed_active'):
         return ConversationHandler.END
-    context.user_data['project_desc_long'] = update.message.text
-    await update.message.reply_text(
-        "✅ Excellent!\n\n"
-        "🪙 *Step 3 of 11: Token Name*\n\n"
-        "What is your *token name*?\n\n"
-        "💡 *Example:* \"Omnipair\" or \"Umbra Token\"",
-        parse_mode='Markdown'
-    )
-    return TOKEN_NAME
-
-async def get_token_name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    if not context.user_data.get('get_listed_active'):
-        return ConversationHandler.END
-    context.user_data['token_name'] = update.message.text
-    await update.message.reply_text(
-        "✅ Got it!\n\n"
-        "🏷️ *Step 4 of 11: Token Ticker*\n\n"
-        "What is your *token ticker symbol*?\n\n"
-        "💡 *Recommendation:* Use a memorable and unique ticker\n"
-        "💡 *Example:* \"OMFG\" for Omnipair or \"UMBRA\"",
-        parse_mode='Markdown'
-    )
-    return TOKEN_TICKER
-
-async def get_token_ticker(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    if not context.user_data.get('get_listed_active'):
-        return ConversationHandler.END
-    context.user_data['token_ticker'] = update.message.text
+    context.user_data['email'] = update.message.text
     await update.message.reply_text(
         "✅ Perfect!\n\n"
-        "🖼️ *Step 5 of 11: Project Image*\n\n"
-        "Please provide the *URL for your project image*:\n\n"
-        "💡 This will be displayed on the MetaDAO site\n"
-        "💡 Supported formats: PNG, JPG, SVG\n"
-        "💡 Recommended size: 512x512px or larger",
+        "🚀 *Step 3 of 3:* What is your project name?",
         parse_mode='Markdown'
     )
-    return PROJECT_IMAGE
+    return GET_LISTED_PROJECT
 
-async def get_project_image(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    if not context.user_data.get('get_listed_active'):
-        return ConversationHandler.END
-    context.user_data['project_image'] = update.message.text
-    await update.message.reply_text(
-        "✅ Image saved!\n\n"
-        "🎨 *Step 6 of 11: Token Image*\n\n"
-        "Please provide the *URL for your token image*:\n\n"
-        "💡 This will be displayed on trading venues like Jupiter\n"
-        "💡 Type 'same' if it's the same as your project image",
-        parse_mode='Markdown'
-    )
-    return TOKEN_IMAGE
-
-async def get_token_image(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    if not context.user_data.get('get_listed_active'):
-        return ConversationHandler.END
-    token_image = update.message.text
-    if token_image.lower() == 'same':
-        context.user_data['token_image'] = context.user_data['project_image']
-    else:
-        context.user_data['token_image'] = token_image
-    await update.message.reply_text(
-        "✅ Looks good!\n\n"
-        "💵 *Step 7 of 11: Minimum Raise Amount*\n\n"
-        "What is your *minimum raise amount*?\n\n"
-        "💡 This is how much your project needs to proceed\n"
-        "💡 If you raise less than this, the sale will be refunded\n"
-        "💡 Recommendation: Add buffer for unexpected expenses and the 20% liquidity provision\n\n"
-        "💡 *Example:* \"$50,000\" or \"50000 USDC\"",
-        parse_mode='Markdown'
-    )
-    return MIN_RAISE
-
-async def get_min_raise(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    if not context.user_data.get('get_listed_active'):
-        return ConversationHandler.END
-    context.user_data['min_raise'] = update.message.text
-    await update.message.reply_text(
-        "✅ Noted!\n\n"
-        "📊 *Step 8 of 11: Monthly Team Budget*\n\n"
-        "What is your *monthly team budget*?\n\n"
-        "💡 This is how much your team needs every month from the treasury to operate\n"
-        "💡 Spends larger than this need governance approval\n"
-        "💡 You can configure this later with governance\n"
-        "⚠️ *Important:* Cannot be larger than 1/6th of your minimum raise amount\n\n"
-        "💡 *Example:* \"$10,000\"",
-        parse_mode='Markdown'
-    )
-    return MONTHLY_BUDGET
-
-async def get_monthly_budget(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    if not context.user_data.get('get_listed_active'):
-        return ConversationHandler.END
-    context.user_data['monthly_budget'] = update.message.text
-    await update.message.reply_text(
-        "✅ Understood!\n\n"
-        "🎁 *Step 9 of 11: Performance Package Configuration*\n\n"
-        "How many tokens do you want to allocate to the *performance package*?\n\n"
-        "💡 *What is this?*\n"
-        "After ICO, 10M tokens go to sale participants and 5M to liquidity. You can pre-allocate up to 15M additional tokens to a performance package.\n\n"
-        "💡 *How it works:*\n"
-        "The package splits into 5 equal tranches that unlock at:\n"
-        "• 2x ICO price\n"
-        "• 4x ICO price\n"
-        "• 8x ICO price\n"
-        "• 16x ICO price\n"
-        "• 32x ICO price\n\n"
-        "💡 *Example:* \"10000000\" (10M tokens) or \"0\" (no performance package)\n\n"
-        "Type the number of tokens or '0' to skip:",
-        parse_mode='Markdown'
-    )
-    return PERFORMANCE_PACKAGE
-
-async def get_performance_package(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    if not context.user_data.get('get_listed_active'):
-        return ConversationHandler.END
-    context.user_data['performance_package'] = update.message.text
-    await update.message.reply_text(
-        "✅ Great!\n\n"
-        "⏰ *Step 10 of 11: Minimum Unlock Time*\n\n"
-        "What is the *minimum unlock time* for the performance package?\n\n"
-        "💡 *Requirements:*\n"
-        "• Must be at least 18 months from ICO date\n"
-        "• Can be longer if you wish\n"
-        "• Price is taken over a 3-month TWAP (Time-Weighted Average Price)\n"
-        "• This extends the true unlock date by 3 months beyond the minimum\n\n"
-        "💡 *Example:* \"18 months\" or \"24 months\"\n\n"
-        "Type 'skip' if you didn't allocate a performance package:",
-        parse_mode='Markdown'
-    )
-    return PERFORMANCE_UNLOCK_TIME
-
-async def get_performance_unlock_time(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    if not context.user_data.get('get_listed_active'):
-        return ConversationHandler.END
-    context.user_data['performance_unlock_time'] = update.message.text
-    await update.message.reply_text(
-        "✅ Almost done!\n\n"
-        "📜 *Step 11 of 11: Intellectual Property*\n\n"
-        "Please list the *intellectual property* that the founder(s) will give up to the project's entity:\n\n"
-        "💡 *This includes but is not limited to:*\n"
-        "• Domain names\n"
-        "• Software and code repositories\n"
-        "• Social media accounts\n"
-        "• Trademarks and patents\n"
-        "• Brand assets\n\n"
-        "💡 Type 'none' if you don't have any intellectual property to transfer",
-        parse_mode='Markdown'
-    )
-    return INTELLECTUAL_PROPERTY
-
-async def get_intellectual_property(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+async def get_listed_project(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     if not context.user_data.get('get_listed_active'):
         return ConversationHandler.END
     
-    context.user_data['intellectual_property'] = update.message.text
+    context.user_data['project_name'] = update.message.text
     
-    # Validate all fields are filled
-    required_fields = [
-        'project_name_short', 'project_desc_long', 'token_name', 'token_ticker',
-        'project_image', 'token_image', 'min_raise', 'monthly_budget',
-        'performance_package', 'performance_unlock_time', 'intellectual_property'
-    ]
-    
-    missing_fields = [field for field in required_fields if not context.user_data.get(field)]
-    
-    if missing_fields:
-        await update.message.reply_text(
-            f"❌ *Oops! Some information is missing*\n\n"
-            f"Missing fields: {', '.join(missing_fields)}\n\n"
-            f"Please start over with /start to submit your listing.",
-            parse_mode='Markdown',
-            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🏠 Main Menu", callback_data='main_menu')]])
-        )
-        context.user_data.clear()
-        return ConversationHandler.END
-    
-    # Extract project name and founder info
-    project_name = context.user_data.get('project_name_short', 'Unknown Project').split(' - ')[0]
-    founder_username = update.effective_user.username
-    founder_id = update.effective_user.id
-    
-    # Create Telegram group for the project
-    group_invite_link = None
-    if founder_username:
-        group_invite_link = await create_project_group(context, project_name, f"@{founder_username}")
-    
-    if not group_invite_link:
-        group_invite_link = "Group creation pending - team will contact you"
-    
-    # Prepare extra_data for logging
-    extra_data = {k: context.user_data.get(k, '') for k in required_fields}
-    extra_data['telegram_group_link'] = group_invite_link
-    extra_data['founder_username'] = founder_username or 'no_username'
-    extra_data['founder_id'] = founder_id
+    extra_data = {
+        'project_name': context.user_data.get('project_name', ''),
+    }
     
     # Log to Google Sheets
     log_request(
-        context.user_data['project_name_short'],
-        update.effective_user.username or str(update.effective_user.id),
+        context.user_data['name'],
+        context.user_data['email'],
         None,
         'Get Listed',
         extra_data=extra_data
     )
     
-    # Build success message
     success_message = (
         "🎉 *Submission Complete!*\n\n"
-        "Congratulations! Your project listing has been submitted successfully.\n\n"
-    )
-    
-    if group_invite_link and not group_invite_link.startswith("Group creation"):
-        success_message += (
-            f"📱 *Your Project Group*\n"
-            f"We've created a dedicated Telegram group for your project:\n"
-            f"{group_invite_link}\n\n"
-            f"Join to coordinate with the MetaDAO team!\n\n"
-        )
-    else:
-        success_message += (
-            f"📱 *Your Project Group*\n"
-            f"Our team will create a dedicated Telegram group:\n"
-            f"*{project_name} <> MetaDAO*\n\n"
-            f"You'll receive an invite link shortly.\n\n"
-        )
-    
-    success_message += (
+        "Congratulations! Your project listing request has been submitted successfully.\n\n"
         "*What happens next:*\n"
         "1️⃣ Our team will review your submission\n"
-        "2️⃣ We'll reach out if we need any additional information\n"
-        "3️⃣ You'll receive a decision within 3-5 business days\n\n"
-        "📧 We'll contact you via Telegram or the contact information you provided.\n\n"
+        "2️⃣ We'll reach out to gather more details about your project\n"
+        "3️⃣ You'll receive a response within 3-5 business days\n\n"
+        "📧 We'll contact you via email at the address you provided.\n\n"
         "Thank you for choosing MetaDAO! 🚀"
     )
     
@@ -1070,22 +712,13 @@ async def get_application():
     if _application is None:
         _application = Application.builder().token(BOT_TOKEN).build()
         
-        # Get listed conversation handler
         get_listed_conv_handler = ConversationHandler(
             entry_points=[CallbackQueryHandler(get_listed_start, pattern='^get_listed$')],
             states={
                 GET_LISTED_CONFIRM: [CallbackQueryHandler(get_listed_confirm)],
-                PROJECT_NAME_SHORT: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_project_name_short)],
-                PROJECT_DESC_LONG: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_project_desc_long)],
-                TOKEN_NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_token_name)],
-                TOKEN_TICKER: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_token_ticker)],
-                PROJECT_IMAGE: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_project_image)],
-                TOKEN_IMAGE: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_token_image)],
-                MIN_RAISE: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_min_raise)],
-                MONTHLY_BUDGET: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_monthly_budget)],
-                PERFORMANCE_PACKAGE: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_performance_package)],
-                PERFORMANCE_UNLOCK_TIME: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_performance_unlock_time)],
-                INTELLECTUAL_PROPERTY: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_intellectual_property)],
+                GET_LISTED_NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_listed_name)],
+                GET_LISTED_EMAIL: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_listed_email)],
+                GET_LISTED_PROJECT: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_listed_project)],
             },
             fallbacks=[CommandHandler('cancel', get_listed_cancel, filters=filters.ChatType.PRIVATE)],
         )
