@@ -90,7 +90,8 @@ META_CA = 'METAwkXcqyXKy1AtsSgJ8JiUHwGCafnZL38n3vYmeta'
 
 def main_inline_keyboard():
     keyboard = [
-        [InlineKeyboardButton("🚀 Get Listed", callback_data='get_listed'), InlineKeyboardButton("📅 ICOs & Calendar", callback_data='icos')],
+        [InlineKeyboardButton("🚀 Get Listed", callback_data='get_listed')], 
+        [InlineKeyboardButton("📅 ICOs & Calendar", callback_data='icos')],
         [InlineKeyboardButton("📚 How Launches Work", callback_data='how_launches_work')],
         [InlineKeyboardButton("🎯 Introduction to Futarchy", callback_data='futarchy_intro')],
         [InlineKeyboardButton("📊 Proposals", callback_data='proposals')],
