@@ -281,7 +281,8 @@ async def start_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         "💬 Submit support requests\n\n"
         "📖 *Quick Links:*\n"
         "• Documentation: [docs.metadao.fi](https://docs.metadao.fi/)\n"
-        "• Website: [metadao.fi](https://metadao.fi)\n\n"
+        "• Website: [metadao.fi](https://metadao.fi)\n"
+        "• Notion: [idontbelieve.link](https://www.idontbelieve.link)\n\n"
         "👇 *Select an option below to get started:*"
     )
     await update.message.reply_text(
