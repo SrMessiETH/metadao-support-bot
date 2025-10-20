@@ -9,6 +9,7 @@ import gspread
 from google.oauth2.service_account import Credentials
 from http.server import BaseHTTPRequestHandler
 import asyncio
+import re
 
 # Enable logging
 logging.basicConfig(
@@ -40,7 +41,11 @@ if not GOOGLE_CREDENTIALS_JSON:
     logger.warning("GOOGLE_CREDENTIALS env var missing—Sheets logging disabled")
     GOOGLE_CREDENTIALS = None
 else:
-    GOOGLE_CREDENTIALS = json.loads(GOOGLE_CREDENTIALS_JSON)
+    try:
+        GOOGLE_CREDENTIALS = json.loads(GOOGLE_CREDENTIALS_JSON)
+    except json.JSONDecodeError as e:
+        logger.error(f"Failed to parse GOOGLE_CREDENTIALS_JSON: {e}")
+        GOOGLE_CREDENTIALS = None
 
 # Resource links
 RESOURCE_LINKS = {
@@ -108,31 +113,44 @@ def proposals_inline_keyboard():
 def get_sheets_client(sheet_name='Support Requests'):
     try:
         if not GOOGLE_CREDENTIALS:
+            logger.warning("Google Sheets credentials not provided")
             return None
         scopes = ['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/drive']
         creds = Credentials.from_service_account_info(GOOGLE_CREDENTIALS, scopes=scopes)
         client = gspread.authorize(creds)
-        spreadsheet = client.open(SHEET_NAME)
+        
+        try:
+            spreadsheet = client.open(SHEET_NAME)
+        except gspread.exceptions.SpreadsheetNotFound:
+            logger.warning(f"Spreadsheet '{SHEET_NAME}' not found, creating a new one...")
+            try:
+                spreadsheet = client.create(SHEET_NAME)
+                spreadsheet.share(None, perm_type='anyone', role='writer')  # Adjust permissions as needed
+                logger.info(f"Created new spreadsheet '{SHEET_NAME}'")
+            except Exception as e:
+                logger.error(f"Failed to create spreadsheet '{SHEET_NAME}': {e}")
+                return None
         
         # Try to get the sheet by name, create if it doesn't exist
         try:
             sheet = spreadsheet.worksheet(sheet_name)
         except gspread.exceptions.WorksheetNotFound:
-            logger.info(f"Sheet '{sheet_name}' not found, creating it...")
-            sheet = spreadsheet.add_worksheet(title=sheet_name, rows=1000, cols=50)
-            
-            if sheet_name == 'Support Requests':
-                # Horizontal layout with headers for Support Requests
-                headers = ['Timestamp', 'Name', 'Email', 'Question', 'Category', 'Subcategory']
-                sheet.append_row(headers)
-                logger.info(f"Created sheet '{sheet_name}' with horizontal layout")
-            else:
-                # Vertical layout for Get Listed - no initial headers needed
-                logger.info(f"Created sheet '{sheet_name}' with vertical layout")
+            logger.info(f"Sheet '{sheet_name}' not found in spreadsheet '{SHEET_NAME}', creating it...")
+            try:
+                sheet = spreadsheet.add_worksheet(title=sheet_name, rows=1000, cols=50)
+                if sheet_name == 'Support Requests':
+                    headers = ['Timestamp', 'Name', 'Email', 'Question', 'Category', 'Subcategory']
+                    sheet.append_row(headers)
+                    logger.info(f"Created sheet '{sheet_name}' with horizontal layout")
+                else:
+                    logger.info(f"Created sheet '{sheet_name}' with vertical layout")
+            except Exception as e:
+                logger.error(f"Failed to create sheet '{sheet_name}': {e}")
+                return None
         
         return sheet
     except Exception as e:
-        logger.error(f"Error setting up Google Sheets: {e}")
+        logger.error(f"Error setting up Google Sheets for sheet '{sheet_name}': {e}", exc_info=True)
         return None
 
 def log_request(name, email, question, category, subcategory=None, extra_data=None):
@@ -144,8 +162,9 @@ def log_request(name, email, question, category, subcategory=None, extra_data=No
         invalid_chars = ['/', '\\', '?', '*', '[', ']', ':']
         for char in invalid_chars:
             sheet_name = sheet_name.replace(char, '_')
+        sheet_name = re.sub(r'\s+', '_', sheet_name)  # Replace spaces with underscores
         if len(sheet_name) > 31:
-            sheet_name = sheet_name[:31]
+            sheet_name = sheet_name[:31].rstrip('_')
         if not sheet_name:
             sheet_name = f"Project_{extra_data['founder_id']}"
     else:
@@ -159,68 +178,72 @@ def log_request(name, email, question, category, subcategory=None, extra_data=No
         if category == 'Support Request':
             # Horizontal layout - append one row
             row = [timestamp, name, email, question, category, subcategory or '']
-            sheet.append_row(row)
-            logger.info(f"Request logged to '{sheet_name}' sheet: {name}, {email}, {category}, {subcategory}")
+            try:
+                sheet.append_row(row)
+                logger.info(f"Request logged to '{sheet_name}' sheet: {name}, {email}, {category}, {subcategory}")
+            except Exception as e:
+                logger.error(f"Failed to append row to '{sheet_name}': {e}")
         else:
             # Vertical layout for Get Listed - append to next available column
-            all_values = sheet.get_all_values()
-            
-            # Find the next empty column (columns come in pairs: field name, value)
-            next_col = 1  # Start at column A
-            if all_values and len(all_values) > 0:
-                first_row = all_values[0]
-                filled_cols = len([cell for cell in first_row if cell.strip()])
-                next_col = filled_cols + 1
-            
-            if extra_data:
-                fields = [
-                    ('Timestamp', timestamp),
-                    ('Founder Email', extra_data.get('founder_email', '')),
-                    ('Project Email', extra_data.get('project_email', '')),
-                    ('Project Name Short', extra_data.get('project_name_short', '')),
-                    ('Project Description', extra_data.get('project_desc_long', '')),
-                    ('Token Name', extra_data.get('token_name', '')),
-                    ('Token Ticker', extra_data.get('token_ticker', '')),
-                    ('Project Image', extra_data.get('project_image', '')),
-                    ('Token Image', extra_data.get('token_image', '')),
-                    ('Minimum Raise', extra_data.get('min_raise', '')),
-                    ('Monthly Budget', extra_data.get('monthly_budget', '')),
-                    ('Performance Package', extra_data.get('performance_package', '')),
-                    ('Performance Unlock Time', extra_data.get('performance_unlock_time', '')),
-                    ('Intellectual Property', extra_data.get('intellectual_property', '')),
-                    ('Domain', extra_data.get('domain', '')),
-                    ('Discord', extra_data.get('discord', '')),
-                    ('Telegram', extra_data.get('telegram', '')),
-                    ('Docs', extra_data.get('docs', '')),
-                    ('X/Twitter', extra_data.get('x_twitter', '')),
-                    ('GitHub', extra_data.get('github', '')),
-                    ('YouTube', extra_data.get('youtube', '')),
-                    ('Medium', extra_data.get('medium', '')),
-                    ('Calendly', extra_data.get('calendly', '')),
-                    ('Insider Payout Address', extra_data.get('insider_payout_address', '')),
-                    ('Spending Limit Addresses', extra_data.get('spending_limit_addresses', '')),
-                    ('X Article', extra_data.get('x_article', '')),
-                    ('Founders Socials', extra_data.get('founders_socials', '')),
-                    ('Founder Username', extra_data.get('founder_username', '')),
-                    ('Founder ID', extra_data.get('founder_id', ''))
-                ]
-            else:
-                fields = [
-                    ('Timestamp', timestamp),
-                    ('Name', name),
-                    ('Email', email),
-                    ('Question', question),
-                    ('Category', category)
-                ]
-            
-            # Write field names in column next_col and values in column next_col+1
-            for row_idx, (field_name, field_value) in enumerate(fields, start=1):
-                sheet.update_cell(row_idx, next_col, field_name)
-                sheet.update_cell(row_idx, next_col + 1, field_value)
-            
-            logger.info(f"Request logged vertically to '{sheet_name}' sheet in columns {next_col}-{next_col+1}: {name}, {category}")
+            try:
+                all_values = sheet.get_all_values()
+                next_col = 1  # Start at column A
+                if all_values and len(all_values) > 0:
+                    first_row = all_values[0]
+                    filled_cols = len([cell for cell in first_row if cell.strip()])
+                    next_col = filled_cols + 1
+                
+                if extra_data:
+                    fields = [
+                        ('Timestamp', timestamp),
+                        ('Founder Email', extra_data.get('founder_email', '')),
+                        ('Project Email', extra_data.get('project_email', '')),
+                        ('Project Name Short', extra_data.get('project_name_short', '')),
+                        ('Project Description', extra_data.get('project_desc_long', '')),
+                        ('Token Name', extra_data.get('token_name', '')),
+                        ('Token Ticker', extra_data.get('token_ticker', '')),
+                        ('Project Image', extra_data.get('project_image', '')),
+                        ('Token Image', extra_data.get('token_image', '')),
+                        ('Minimum Raise', extra_data.get('min_raise', '')),
+                        ('Monthly Budget', extra_data.get('monthly_budget', '')),
+                        ('Performance Package', extra_data.get('performance_package', '')),
+                        ('Performance Unlock Time', extra_data.get('performance_unlock_time', '')),
+                        ('Intellectual Property', extra_data.get('intellectual_property', '')),
+                        ('Domain', extra_data.get('domain', '')),
+                        ('Discord', extra_data.get('discord', '')),
+                        ('Telegram', extra_data.get('telegram', '')),
+                        ('Docs', extra_data.get('docs', '')),
+                        ('X/Twitter', extra_data.get('x_twitter', '')),
+                        ('GitHub', extra_data.get('github', '')),
+                        ('YouTube', extra_data.get('youtube', '')),
+                        ('Medium', extra_data.get('medium', '')),
+                        ('Calendly', extra_data.get('calendly', '')),
+                        ('Insider Payout Address', extra_data.get('insider_payout_address', '')),
+                        ('Spending Limit Addresses', extra_data.get('spending_limit_addresses', '')),
+                        ('X Article', extra_data.get('x_article', '')),
+                        ('Founders Socials', extra_data.get('founders_socials', '')),
+                        ('Founder Username', extra_data.get('founder_username', '')),
+                        ('Founder ID', extra_data.get('founder_id', ''))
+                    ]
+                else:
+                    fields = [
+                        ('Timestamp', timestamp),
+                        ('Name', name),
+                        ('Email', email),
+                        ('Question', question),
+                        ('Category', category)
+                    ]
+                
+                # Write field names in column next_col and values in column next_col+1
+                for row_idx, (field_name, field_value) in enumerate(fields, start=1):
+                    sheet.update_cell(row_idx, next_col, field_name)
+                    sheet.update_cell(row_idx, next_col + 1, field_value)
+                
+                logger.info(f"Request logged vertically to '{sheet_name}' sheet in columns {next_col}-{next_col+1}: {name}, {category}")
+            except Exception as e:
+                logger.error(f"Failed to log to sheet '{sheet_name}': {e}", exc_info=True)
     else:
-        logger.warning("Could not log to Google Sheets - client not available")
+        logger.warning(f"Could not log to Google Sheets - client not available for sheet '{sheet_name}'")
 
 async def forward_to_support(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if SUPPORT_CHAT_ID:
@@ -236,7 +259,10 @@ async def forward_to_support(update: Update, context: ContextTypes.DEFAULT_TYPE)
             f"User ID: {user.id}\n"
             f"Chat Type: {chat_type}"
         )
-        await context.bot.send_message(chat_id=SUPPORT_CHAT_ID, text=message_text)
+        try:
+            await context.bot.send_message(chat_id=SUPPORT_CHAT_ID, text=message_text)
+        except Exception as e:
+            logger.error(f"Failed to forward support request to chat {SUPPORT_CHAT_ID}: {e}")
 
 async def start_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if update.effective_chat.type != 'private':
@@ -275,7 +301,14 @@ async def help_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         "/web - Get MetaDAO website link\n"
         "/docs - Get documentation link\n"
         "/icos - Get calendar and ICOs link\n"
-        "/markets - View active markets\n\n"
+        "/markets - View active markets\n"
+        "/twitter - Follow us on X/Twitter\n"
+        "/telegram - Join our Telegram community\n"
+        "/discord - Join our Discord server\n"
+        "/youtube - Subscribe to our YouTube\n"
+        "/blog - Read our blog\n"
+        "/futarchyamm - View AMM metrics\n"
+        "/github - Explore our GitHub\n\n"
         "*How to use:*\n"
         "• Use the inline menu buttons to navigate\n"
         "• Select 'Support Request' to submit a question\n"
@@ -295,11 +328,10 @@ async def cancel_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     if update.effective_chat.type != 'private':
         return ConversationHandler.END
     
-    # Clear any active support request
-    if context.user_data.get('support_active'):
+    if context.user_data.get('support_active') or context.user_data.get('get_listed_active'):
         context.user_data.clear()
         await update.message.reply_text(
-            "❌ *Operation Cancelled*\n\nYour support request has been cancelled. No worries, you can start again anytime!",
+            "❌ *Operation Cancelled*\n\nYour request has been cancelled. You can start again anytime!",
             parse_mode='Markdown',
             reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🏠 Main Menu", callback_data='main_menu')]])
         )
@@ -339,7 +371,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         )
         return
 
-    # Handle sub proposals
     sub_map = {
         'proposals_create': ('✍️ Creating Proposals', 'Learn how to create and submit proposals'),
         'proposals_trade': ('📈 Trading Proposals', 'Discover how to trade on proposal markets'),
@@ -356,7 +387,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         )
         return
 
-    # Handle main categories (excluding support_request which is a conversation)
     category_map = {
         'icos': ('📅 ICOs & Calendar', 'View all upcoming and active ICOs'),
         'how_launches_work': ('📚 How Launches Work', 'Learn about the MetaDAO launch process'),
@@ -408,7 +438,6 @@ async def support_category_selected(update: Update, context: ContextTypes.DEFAUL
     query = update.callback_query
     await query.answer()
     
-    # Map callback data to subcategory names
     subcategory_map = {
         'support_refunds': 'Refunds',
         'support_bugs': 'Bugs',
@@ -421,7 +450,6 @@ async def support_category_selected(update: Update, context: ContextTypes.DEFAUL
     subcategory = subcategory_map.get(query.data, 'General Inquiry')
     context.user_data['subcategory'] = subcategory
     
-    # Get emoji for the selected category
     emoji_map = {
         'Refunds': '💰',
         'Bugs': '🐛',
@@ -459,8 +487,8 @@ async def get_email(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     subcategory = context.user_data.get('subcategory', 'General Inquiry')
     
     await update.message.reply_text(
-        "✅ Perfect!\n\n"
-        "📝 *Step 3 of 3:* Please describe your *{subcategory.lower()}* in detail:",
+        f"✅ Perfect!\n\n"
+        f"📝 *Step 3 of 3:* Please describe your *{subcategory.lower()}* in detail:",
         parse_mode='Markdown'
     )
     return QUESTION
@@ -481,7 +509,7 @@ async def get_question(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
     response = (
         "✅ *Request Submitted Successfully!*\n\n"
         "Thank you for reaching out! Our support team has received your request and will review it shortly.\n\n"
-        "📧 We'll get back to you via email at:\n"
+        f"📧 We'll get back to you via email at:\n"
         f"`{email}`\n\n"
         "⏱️ *Expected response time:* 24-48 hours\n\n"
         "Need anything else? Feel free to explore the menu below!"
@@ -498,7 +526,7 @@ async def get_question(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
 
 async def ca_command_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await update.message.reply_text(
-        "🪙 *META Contract Address*\n\n"
+        f"🪙 *META Contract Address*\n\n"
         f"`{META_CA}`\n\n"
         "💡 Tap to copy the address above",
         parse_mode='Markdown'
@@ -506,7 +534,7 @@ async def ca_command_handler(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
 async def web_command_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await update.message.reply_text(
-        "🌐 *MetaDAO Website*\n\n"
+        f"🌐 *MetaDAO Website*\n\n"
         f"Visit us at: {RESOURCE_LINKS['website']}\n\n"
         "Explore our platform, learn about futarchy, and discover upcoming projects!",
         parse_mode='Markdown',
@@ -515,7 +543,7 @@ async def web_command_handler(update: Update, context: ContextTypes.DEFAULT_TYPE
 
 async def docs_command_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await update.message.reply_text(
-        "📚 *MetaDAO Documentation*\n\n"
+        f"📚 *MetaDAO Documentation*\n\n"
         f"Access our docs at: {RESOURCE_LINKS['docs']}\n\n"
         "Find guides, tutorials, and detailed information about our platform.",
         parse_mode='Markdown',
@@ -524,7 +552,7 @@ async def docs_command_handler(update: Update, context: ContextTypes.DEFAULT_TYP
 
 async def icos_command_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await update.message.reply_text(
-        "📅 *MetaDAO Calendar & ICOs*\n\n"
+        f"📅 *MetaDAO Calendar & ICOs*\n\n"
         f"View all upcoming ICOs: {RESOURCE_LINKS['icos']}\n\n"
         "Stay updated on the latest project launches and investment opportunities!",
         parse_mode='Markdown',
@@ -639,7 +667,7 @@ async def get_listed_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         "📝 *Project Information:*\n"
         "• Project name and description (short & long versions)\n"
         "• Token name, ticker, and address\n"
-        "• Links (domain, docs, social media, GitHub, Calendly)\n\n"
+        "• Links (domain, docs, social media, GitHub, YouTube, Medium, Calendly)\n\n"
         "🖼️ *Visual Assets:*\n"
         "• Project image and token image\n\n"
         "💰 *Financial Details:*\n"
@@ -858,14 +886,14 @@ async def get_performance_unlock_time(update: Update, context: ContextTypes.DEFA
         "*This includes but is not limited to:*\n"
         "• Domain names\n"
         "• Software and codebases\n"
-        "• Social media accounts (Twitter/X handles, Discord, Telegram, YouTube channels, Medium blogs, etc)\n"
+        "• Social media accounts (Twitter/X, Discord, Telegram, YouTube channels, Medium blogs, etc.)\n"
         "• Revenue rights\n"
         "• Trademarks and patents\n"
         "• Brand assets\n\n"
         "🔴 *Everything is given up to the DAO.* This is what makes our tokens work the way they do.\n\n"
-        "Note: In the following steps, we will ask for specific links including domain, Discord, Telegram, documentation, X/Twitter, GitHub, YouTube and Medium.\n\n"
-        "Please list ALL intellectual property that will be transferred to the project's entity besides the mentioned above like revenue rights, trademarks and patents and brand assets:\n\n"
-        "💡 Type 'none' if you don't have any intellectual property to transfer",
+        "Note: In the following steps, we will ask for specific links including domain, Discord, Telegram, documentation, X/Twitter, GitHub, YouTube, and Medium.\n\n"
+        "Please list ALL additional intellectual property that will be transferred to the project's entity (e.g., revenue rights, trademarks, patents, brand assets) excluding the specific links requested later:\n\n"
+        "💡 Type 'none' if you don't have any additional intellectual property to transfer",
         parse_mode='Markdown'
     )
     return INTELLECTUAL_PROPERTY
@@ -878,7 +906,8 @@ async def get_intellectual_property(update: Update, context: ContextTypes.DEFAUL
         "✅ Great!\n\n"
         "🌐 *Step 14 of 26: Domain*\n\n"
         "What is your *project's website domain*?\n\n"
-        "💡 *Example:* \"https://myproject.com\"",
+        "💡 *Example:* \"https://myproject.com\"\n"
+        "💡 Type 'none' if you don't have a website",
         parse_mode='Markdown'
     )
     return DOMAIN
@@ -891,6 +920,7 @@ async def get_domain(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         "✅ Got it!\n\n"
         "💬 *Step 15 of 26: Discord*\n\n"
         "What is your *Discord server invite link*?\n\n"
+        "💡 *Example:* \"https://discord.gg/myproject\"\n"
         "💡 Type 'none' if you don't have a Discord server",
         parse_mode='Markdown'
     )
@@ -904,6 +934,7 @@ async def get_discord(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
         "✅ Noted!\n\n"
         "📱 *Step 16 of 26: Telegram*\n\n"
         "What is your *Telegram group/channel link*?\n\n"
+        "💡 *Example:* \"https://t.me/myproject\"\n"
         "💡 Type 'none' if you don't have a Telegram community",
         parse_mode='Markdown'
     )
@@ -931,7 +962,8 @@ async def get_docs(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         "✅ Great!\n\n"
         "🐦 *Step 18 of 26: X (Twitter)*\n\n"
         "What is your *X/Twitter profile link*?\n\n"
-        "💡 *Example:* \"https://x.com/myproject\"",
+        "💡 *Example:* \"https://x.com/myproject\"\n"
+        "💡 Type 'none' if you don't have an X/Twitter profile",
         parse_mode='Markdown'
     )
     return X_TWITTER
@@ -987,6 +1019,7 @@ async def get_medium(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         "📅 *Step 22 of 26: Calendly*\n\n"
         "What is your *Calendly booking link*?\n\n"
         "💡 This allows investors to schedule meetings with you\n"
+        "💡 *Example:* \"https://calendly.com/myproject\"\n"
         "💡 Type 'none' if you don't use Calendly",
         parse_mode='Markdown'
     )
@@ -1055,6 +1088,13 @@ async def get_founders_socials(update: Update, context: ContextTypes.DEFAULT_TYP
         return ConversationHandler.END
     
     context.user_data['founders_socials'] = update.message.text
+    
+    # Inform user that data is being processed
+    await update.message.reply_text(
+        "⏳ *Processing your submission...*\n\n"
+        "Please wait a moment while we save your project details.",
+        parse_mode='Markdown'
+    )
     
     extra_data = {
         'founder_email': context.user_data.get('founder_email', ''),
@@ -1182,7 +1222,6 @@ async def get_application():
             fallbacks=[CommandHandler('cancel', get_listed_cancel, filters=filters.ChatType.PRIVATE)],
         )
 
-        # Support conversation handler
         conv_handler = ConversationHandler(
             entry_points=[CallbackQueryHandler(support_start, pattern='^support_request$')],
             states={
@@ -1204,7 +1243,6 @@ async def get_application():
         _application.add_handler(CommandHandler('icos', icos_command_handler))
         _application.add_handler(CommandHandler('markets', markets_command_handler))
         _application.add_handler(CommandHandler('twitter', twitter_command_handler))
-        
         _application.add_handler(CommandHandler('telegram', telegram_command_handler))
         _application.add_handler(CommandHandler('discord', discord_command_handler))
         _application.add_handler(CommandHandler('youtube', youtube_command_handler))
@@ -1225,7 +1263,6 @@ async def get_application():
         
         await _application.bot.delete_my_commands()
         
-        # Set commands for private chats only (conversation commands)
         private_commands = [
             BotCommand("start", "Start the bot and show main menu"),
             BotCommand("help", "Show help information"),
@@ -1233,7 +1270,6 @@ async def get_application():
         ]
         await _application.bot.set_my_commands(private_commands, scope=BotCommandScopeAllPrivateChats())
         
-        # Set commands for group chats only (info commands)
         group_commands = [
             BotCommand("ca", "Get META contract address"),
             BotCommand("web", "Get MetaDAO website link"),
@@ -1272,11 +1308,9 @@ class handler(BaseHTTPRequestHandler):
         try:
             logger.info("Webhook POST request received")
             
-            # Read request body
             content_length = int(self.headers.get('Content-Length', 0))
             body = self.rfile.read(content_length)
             
-            # Parse JSON update from Telegram
             update_dict = json.loads(body.decode('utf-8'))
             
             update_id = update_dict.get('update_id')
@@ -1294,11 +1328,8 @@ class handler(BaseHTTPRequestHandler):
             loop.run_until_complete(self._process_update_async(update_dict, update_id))
             
         except Exception as e:
-            logger.error(f"Error processing webhook: {e}")
-            import traceback
-            traceback.print_exc()
+            logger.error(f"Error processing webhook: {e}", exc_info=True)
             
-            # Remove from processing set on error
             if update_id and update_id in _processing_updates:
                 _processing_updates.discard(update_id)
         finally:
@@ -1311,20 +1342,16 @@ class handler(BaseHTTPRequestHandler):
             
             update = Update.de_json(update_dict, app.bot)
             
-            # Process the update
             await app.process_update(update)
             logger.info("Update processed successfully")
             
             await asyncio.sleep(0.5)
             
-            # Schedule cleanup for later
             if update_id:
                 asyncio.create_task(self._cleanup_update_id_delayed(update_id))
                 
         except Exception as e:
-            logger.error(f"Error in async update processing: {e}")
-            import traceback
-            traceback.print_exc()
+            logger.error(f"Error in async update processing: {e}", exc_info=True)
     
     async def _cleanup_update_id_delayed(self, update_id: int):
         """Remove update ID from tracking after delay"""
