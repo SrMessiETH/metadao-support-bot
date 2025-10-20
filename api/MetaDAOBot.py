@@ -89,26 +89,27 @@ PROJECT_INFO = {
 META_CA = 'METAwkXcqyXKy1AtsSgJ8JiUHwGCafnZL38n3vYmeta'
 
 def main_inline_keyboard():
-    # Pad button texts to make them visually similar in length
+    # Visual centering with symmetric padding spaces
     keyboard = [
-        [InlineKeyboardButton("🚀 Get Listed            ", callback_data='get_listed')],
-        [InlineKeyboardButton("📅 ICOs & Calendar       ", callback_data='icos')],
-        [InlineKeyboardButton("📚 How Launches Work     ", callback_data='how_launches_work')],
-        [InlineKeyboardButton("🎯 Introduction to Futarchy", callback_data='futarchy_intro')],
-        [InlineKeyboardButton("📊 Proposals             ", callback_data='proposals')],
-        [InlineKeyboardButton("💼 For Entrepreneurs     ", callback_data='entrepreneurs')],
-        [InlineKeyboardButton("💰 For Investors         ", callback_data='investors')],
-        [InlineKeyboardButton("💬 Support Request       ", callback_data='support_request')]
+        [InlineKeyboardButton("🚀  Get Listed  ", callback_data='get_listed')],
+        [InlineKeyboardButton("📅  ICOs & Calendar  ", callback_data='icos')],
+        [InlineKeyboardButton("📚  How Launches Work  ", callback_data='how_launches_work')],
+        [InlineKeyboardButton("🎯  Introduction to Futarchy  ", callback_data='futarchy_intro')],
+        [InlineKeyboardButton("📊  Proposals  ", callback_data='proposals')],
+        [InlineKeyboardButton("💼  For Entrepreneurs  ", callback_data='entrepreneurs')],
+        [InlineKeyboardButton("💰  For Investors  ", callback_data='investors')],
+        [InlineKeyboardButton("💬  Support Request  ", callback_data='support_request')]
     ]
     return InlineKeyboardMarkup(keyboard)
 
 def proposals_inline_keyboard():
+    # Visual centering with symmetric padding spaces
     keyboard = [
-        [InlineKeyboardButton("✍️ Creating Proposals    ", callback_data='proposals_create')],
-        [InlineKeyboardButton("📈 Trading Proposals     ", callback_data='proposals_trade')],
-        [InlineKeyboardButton("✅ Finalizing Proposals  ", callback_data='proposals_finalize')],
-        [InlineKeyboardButton("📊 View Markets          ", url='https://v1.metadao.fi/markets')],
-        [InlineKeyboardButton("⬅️ Back to Main Menu    ", callback_data='main_menu')]
+        [InlineKeyboardButton("✍️  Creating Proposals  ", callback_data='proposals_create')],
+        [InlineKeyboardButton("📈  Trading Proposals  ", callback_data='proposals_trade')],
+        [InlineKeyboardButton("✅  Finalizing Proposals  ", callback_data='proposals_finalize')],
+        [InlineKeyboardButton("📊  View Markets  ", url='https://v1.metadao.fi/markets')],
+        [InlineKeyboardButton("⬅️  Back to Main Menu  ", callback_data='main_menu')]
     ]
     return InlineKeyboardMarkup(keyboard)
 
