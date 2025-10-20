@@ -24,8 +24,8 @@ SUPPORT_CATEGORY, NAME, EMAIL, QUESTION = range(4)
 (GET_LISTED_CONFIRM, FOUNDER_EMAIL, PROJECT_EMAIL, PROJECT_NAME_SHORT, PROJECT_DESC_LONG, TOKEN_NAME, TOKEN_TICKER, 
  PROJECT_IMAGE, TOKEN_IMAGE, MIN_RAISE, MONTHLY_BUDGET, PERFORMANCE_PACKAGE, 
  PERFORMANCE_UNLOCK_TIME, INTELLECTUAL_PROPERTY, DOMAIN, DISCORD, 
- TELEGRAM_LINK, DOCS, X_TWITTER, GITHUB, CALENDLY, 
- INSIDER_PAYOUT_ADDRESS, SPENDING_LIMIT_ADDRESSES, X_ARTICLE, FOUNDERS_SOCIALS) = range(12, 37)
+ TELEGRAM_LINK, DOCS, X_TWITTER, GITHUB, YOUTUBE, MEDIUM, CALENDLY, 
+ INSIDER_PAYOUT_ADDRESS, SPENDING_LIMIT_ADDRESSES, X_ARTICLE, FOUNDERS_SOCIALS) = range(12, 39)
 
 # Secrets from env vars
 BOT_TOKEN = os.environ.get('BOT_TOKEN')
@@ -136,7 +136,21 @@ def get_sheets_client(sheet_name='Support Requests'):
         return None
 
 def log_request(name, email, question, category, subcategory=None, extra_data=None):
-    sheet_name = 'Get Listed' if category == 'Get Listed' else 'Support Requests'
+    if category == 'Support Request':
+        sheet_name = 'Support Requests'
+    elif category == 'Get Listed':
+        sheet_name = extra_data['project_name_short'].strip()
+        # Sanitize sheet name
+        invalid_chars = ['/', '\\', '?', '*', '[', ']', ':']
+        for char in invalid_chars:
+            sheet_name = sheet_name.replace(char, '_')
+        if len(sheet_name) > 31:
+            sheet_name = sheet_name[:31]
+        if not sheet_name:
+            sheet_name = f"Project_{extra_data['founder_id']}"
+    else:
+        sheet_name = 'Support Requests'
+
     sheet = get_sheets_client(sheet_name)
     
     if sheet:
@@ -180,6 +194,8 @@ def log_request(name, email, question, category, subcategory=None, extra_data=No
                     ('Docs', extra_data.get('docs', '')),
                     ('X/Twitter', extra_data.get('x_twitter', '')),
                     ('GitHub', extra_data.get('github', '')),
+                    ('YouTube', extra_data.get('youtube', '')),
+                    ('Medium', extra_data.get('medium', '')),
                     ('Calendly', extra_data.get('calendly', '')),
                     ('Insider Payout Address', extra_data.get('insider_payout_address', '')),
                     ('Spending Limit Addresses', extra_data.get('spending_limit_addresses', '')),
@@ -651,7 +667,7 @@ async def get_listed_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE)
     if query.data == 'get_listed_yes':
         context.user_data['get_listed_active'] = True
         await query.edit_message_text(
-            "🎯 *Step 1 of 24: Founder's Email*\n\n"
+            "🎯 *Step 1 of 26: Founder's Email*\n\n"
             "Please provide your *email address* (founder's personal email):\n\n"
             "💡 We'll use this to contact you about your submission\n\n"
             "📻 *Important:* Before you continue, please listen to this X space for crucial information about intellectual property, revenues, and how MetaDAO works:\n"
@@ -673,7 +689,7 @@ async def get_founder_email(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     context.user_data['founder_email'] = update.message.text
     await update.message.reply_text(
         "✅ Got it!\n\n"
-        "📧 *Step 2 of 24: Project Email*\n\n"
+        "📧 *Step 2 of 26: Project Email*\n\n"
         "Please provide your *project's official email address*:\n\n"
         "💡 This is the email for your project/company (can be the same as founder's email if you don't have a separate one)",
         parse_mode='Markdown'
@@ -686,7 +702,7 @@ async def get_project_email(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     context.user_data['project_email'] = update.message.text
     await update.message.reply_text(
         "✅ Perfect!\n\n"
-        "🎯 *Step 3 of 24: Project Name & Short Description*\n\n"
+        "🎯 *Step 3 of 26: Project Name & Short Description*\n\n"
         "Please provide your *project name* and a *1-2 sentence description*:\n\n"
         "💡 *Example:*\n"
         "\"Umbra - A privacy-focused DeFi protocol enabling anonymous transactions on Solana.\"\n\n"
@@ -701,7 +717,7 @@ async def get_project_name_short(update: Update, context: ContextTypes.DEFAULT_T
     context.user_data['project_name_short'] = update.message.text
     await update.message.reply_text(
         "✅ Great start!\n\n"
-        "📝 *Step 4 of 24: Detailed Description*\n\n"
+        "📝 *Step 4 of 26: Detailed Description*\n\n"
         "Now provide a *longer, more detailed description* of your project:\n\n"
         "💡 *What to include:*\n"
         "• Your mission and vision\n"
@@ -718,7 +734,7 @@ async def get_project_desc_long(update: Update, context: ContextTypes.DEFAULT_TY
     context.user_data['project_desc_long'] = update.message.text
     await update.message.reply_text(
         "✅ Excellent!\n\n"
-        "🪙 *Step 5 of 24: Token Name*\n\n"
+        "🪙 *Step 5 of 26: Token Name*\n\n"
         "What is your *token name*?\n\n"
         "💡 *Example:* \"Omnipair\" or \"Umbra Token\"",
         parse_mode='Markdown'
@@ -731,7 +747,7 @@ async def get_token_name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     context.user_data['token_name'] = update.message.text
     await update.message.reply_text(
         "✅ Got it!\n\n"
-        "🏷️ *Step 6 of 24: Token Ticker*\n\n"
+        "🏷️ *Step 6 of 26: Token Ticker*\n\n"
         "What is your *token ticker symbol*?\n\n"
         "💡 *Example:* \"OMFG\" for Omnipair or \"UMBRA\"",
         parse_mode='Markdown'
@@ -744,7 +760,7 @@ async def get_token_ticker(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     context.user_data['token_ticker'] = update.message.text
     await update.message.reply_text(
         "✅ Perfect!\n\n"
-        "🖼️ *Step 7 of 24: Project Image*\n\n"
+        "🖼️ *Step 7 of 26: Project Image*\n\n"
         "Please provide the *URL for your project image*:\n\n"
         "💡 Supported formats: PNG, JPG, SVG\n"
         "💡 Recommended size: 512x512px or larger",
@@ -758,7 +774,7 @@ async def get_project_image(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     context.user_data['project_image'] = update.message.text
     await update.message.reply_text(
         "✅ Image saved!\n\n"
-        "🎨 *Step 8 of 24: Token Image*\n\n"
+        "🎨 *Step 8 of 26: Token Image*\n\n"
         "Please provide the *URL for your token image*:\n\n"
         "💡 This will be displayed on trading venues like Jupiter\n"
         "💡 Type 'same' if it's the same as your project image",
@@ -776,7 +792,7 @@ async def get_token_image(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         context.user_data['token_image'] = token_image
     await update.message.reply_text(
         "✅ Looks good!\n\n"
-        "💵 *Step 9 of 24: Minimum Raise Amount*\n\n"
+        "💵 *Step 9 of 26: Minimum Raise Amount*\n\n"
         "What is your *minimum raise amount*?\n\n"
         "💡 This is how much your project needs to proceed\n"
         "💡 If you raise less than this, the sale will be refunded\n\n"
@@ -791,7 +807,7 @@ async def get_min_raise(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
     context.user_data['min_raise'] = update.message.text
     await update.message.reply_text(
         "✅ Noted!\n\n"
-        "📊 *Step 10 of 24: Monthly Team Budget*\n\n"
+        "📊 *Step 10 of 26: Monthly Team Budget*\n\n"
         "What is your *monthly team budget*?\n\n"
         "💡 This is how much your team needs every month from the treasury\n"
         "💡 Cannot be larger than 1/6th of your minimum raise amount\n\n"
@@ -806,7 +822,7 @@ async def get_monthly_budget(update: Update, context: ContextTypes.DEFAULT_TYPE)
     context.user_data['monthly_budget'] = update.message.text
     await update.message.reply_text(
         "✅ Understood!\n\n"
-        "🎁 *Step 11 of 24: Performance Package*\n\n"
+        "🎁 *Step 11 of 26: Performance Package*\n\n"
         "How many tokens do you want to allocate to the *performance package*?\n\n"
         "💡 You can pre-allocate up to 15M additional tokens\n"
         "💡 The package splits into 5 equal tranches that unlock at 2x, 4x, 8x, 16x, and 32x ICO price\n\n"
@@ -821,7 +837,7 @@ async def get_performance_package(update: Update, context: ContextTypes.DEFAULT_
     context.user_data['performance_package'] = update.message.text
     await update.message.reply_text(
         "✅ Great!\n\n"
-        "⏰ *Step 12 of 24: Minimum Unlock Time*\n\n"
+        "⏰ *Step 12 of 26: Minimum Unlock Time*\n\n"
         "What is the *minimum unlock time* for the performance package?\n\n"
         "💡 Must be at least 18 months from ICO date\n"
         "💡 *Example:* \"18 months\" or \"24 months\"\n"
@@ -836,17 +852,18 @@ async def get_performance_unlock_time(update: Update, context: ContextTypes.DEFA
     context.user_data['performance_unlock_time'] = update.message.text
     await update.message.reply_text(
         "✅ Noted!\n\n"
-        "📜 *Step 13 of 24: Intellectual Property*\n\n"
+        "📜 *Step 13 of 26: Intellectual Property*\n\n"
         "⚠️ *IMPORTANT WARNING:*\n"
         "When you fill out your document, it MUST include a complete list of intellectual properties that the founder(s) will give up to the project's entity.\n\n"
         "*This includes but is not limited to:*\n"
         "• Domain names\n"
         "• Software and codebases\n"
-        "• Social media accounts (Twitter/X handles, etc.)\n"
+        "• Social media accounts (Twitter/X handles, Discord, Telegram, YouTube channels, Medium blogs, etc.)\n"
         "• Revenue rights\n"
         "• Trademarks and patents\n"
         "• Brand assets\n\n"
         "🔴 *Everything is given up to the DAO.* This is what makes our tokens work the way they do.\n\n"
+        "Note: In the following steps, we will ask for specific links including domain, Discord, Telegram, documentation, X/Twitter, GitHub, YouTube, Medium, etc.\n\n"
         "Please list ALL intellectual property that will be transferred to the project's entity:\n\n"
         "💡 Type 'none' if you don't have any intellectual property to transfer",
         parse_mode='Markdown'
@@ -859,7 +876,7 @@ async def get_intellectual_property(update: Update, context: ContextTypes.DEFAUL
     context.user_data['intellectual_property'] = update.message.text
     await update.message.reply_text(
         "✅ Great!\n\n"
-        "🌐 *Step 14 of 24: Domain*\n\n"
+        "🌐 *Step 14 of 26: Domain*\n\n"
         "What is your *project's website domain*?\n\n"
         "💡 *Example:* \"https://myproject.com\"",
         parse_mode='Markdown'
@@ -872,7 +889,7 @@ async def get_domain(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     context.user_data['domain'] = update.message.text
     await update.message.reply_text(
         "✅ Got it!\n\n"
-        "💬 *Step 15 of 24: Discord*\n\n"
+        "💬 *Step 15 of 26: Discord*\n\n"
         "What is your *Discord server invite link*?\n\n"
         "💡 Type 'none' if you don't have a Discord server",
         parse_mode='Markdown'
@@ -885,7 +902,7 @@ async def get_discord(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
     context.user_data['discord'] = update.message.text
     await update.message.reply_text(
         "✅ Noted!\n\n"
-        "📱 *Step 16 of 24: Telegram*\n\n"
+        "📱 *Step 16 of 26: Telegram*\n\n"
         "What is your *Telegram group/channel link*?\n\n"
         "💡 Type 'none' if you don't have a Telegram community",
         parse_mode='Markdown'
@@ -898,7 +915,7 @@ async def get_telegram_link(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     context.user_data['telegram'] = update.message.text
     await update.message.reply_text(
         "✅ Perfect!\n\n"
-        "📚 *Step 17 of 24: Documentation*\n\n"
+        "📚 *Step 17 of 26: Documentation*\n\n"
         "What is your *documentation link*?\n\n"
         "💡 *Example:* \"https://docs.myproject.com\"\n"
         "💡 Type 'none' if you don't have documentation yet",
@@ -912,7 +929,7 @@ async def get_docs(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     context.user_data['docs'] = update.message.text
     await update.message.reply_text(
         "✅ Great!\n\n"
-        "🐦 *Step 18 of 24: X (Twitter)*\n\n"
+        "🐦 *Step 18 of 26: X (Twitter)*\n\n"
         "What is your *X/Twitter profile link*?\n\n"
         "💡 *Example:* \"https://x.com/myproject\"",
         parse_mode='Markdown'
@@ -925,7 +942,7 @@ async def get_x_twitter(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
     context.user_data['x_twitter'] = update.message.text
     await update.message.reply_text(
         "✅ Saved!\n\n"
-        "💻 *Step 19 of 24: GitHub*\n\n"
+        "💻 *Step 19 of 26: GitHub*\n\n"
         "What is your *GitHub repository link*?\n\n"
         "💡 *Example:* \"https://github.com/myproject\"\n"
         "💡 Type 'none' if your code isn't open source",
@@ -939,7 +956,35 @@ async def get_github(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     context.user_data['github'] = update.message.text
     await update.message.reply_text(
         "✅ Got it!\n\n"
-        "📅 *Step 20 of 24: Calendly*\n\n"
+        "📺 *Step 20 of 26: YouTube*\n\n"
+        "What is your *YouTube channel link*?\n\n"
+        "💡 *Example:* \"https://youtube.com/@myproject\"\n"
+        "💡 Type 'none' if you don't have a YouTube channel",
+        parse_mode='Markdown'
+    )
+    return YOUTUBE
+
+async def get_youtube(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    if not context.user_data.get('get_listed_active'):
+        return ConversationHandler.END
+    context.user_data['youtube'] = update.message.text
+    await update.message.reply_text(
+        "✅ Noted!\n\n"
+        "📝 *Step 21 of 26: Medium*\n\n"
+        "What is your *Medium blog link*?\n\n"
+        "💡 *Example:* \"https://medium.com/myproject\"\n"
+        "💡 Type 'none' if you don't have a Medium blog",
+        parse_mode='Markdown'
+    )
+    return MEDIUM
+
+async def get_medium(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    if not context.user_data.get('get_listed_active'):
+        return ConversationHandler.END
+    context.user_data['medium'] = update.message.text
+    await update.message.reply_text(
+        "✅ Great!\n\n"
+        "📅 *Step 22 of 26: Calendly*\n\n"
         "What is your *Calendly booking link*?\n\n"
         "💡 This allows investors to schedule meetings with you\n"
         "💡 Type 'none' if you don't use Calendly",
@@ -953,7 +998,7 @@ async def get_calendly(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
     context.user_data['calendly'] = update.message.text
     await update.message.reply_text(
         "✅ Perfect!\n\n"
-        "💳 *Step 21 of 24: Insider Allocation Payout Address*\n\n"
+        "💳 *Step 23 of 26: Insider Allocation Payout Address*\n\n"
         "What is the *wallet address* for insider allocation payouts?\n\n"
         "💡 This is where performance package tokens will be sent\n"
         "💡 Type 'skip' if you didn't allocate a performance package",
@@ -967,7 +1012,7 @@ async def get_insider_payout_address(update: Update, context: ContextTypes.DEFAU
     context.user_data['insider_payout_address'] = update.message.text
     await update.message.reply_text(
         "✅ Saved!\n\n"
-        "👥 *Step 22 of 24: Spending Limit Members Addresses*\n\n"
+        "👥 *Step 24 of 26: Spending Limit Members Addresses*\n\n"
         "Please provide *wallet addresses* for spending limit members (up to 10):\n\n"
         "💡 These addresses will have spending authority up to the limit\n"
         "💡 Separate multiple addresses with commas\n"
@@ -982,7 +1027,7 @@ async def get_spending_limit_addresses(update: Update, context: ContextTypes.DEF
     context.user_data['spending_limit_addresses'] = update.message.text
     await update.message.reply_text(
         "✅ Great!\n\n"
-        "📰 *Step 23 of 24: X Article About the Project*\n\n"
+        "📰 *Step 25 of 26: X Article About the Project*\n\n"
         "Please provide a *link to an X/Twitter article* about your project:\n\n"
         "💡 This could be an announcement thread, detailed explanation, or project overview\n"
         "💡 Type 'none' if you don't have one yet",
@@ -996,7 +1041,7 @@ async def get_x_article(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
     context.user_data['x_article'] = update.message.text
     await update.message.reply_text(
         "✅ Almost done!\n\n"
-        "👤 *Step 24 of 24: Founders' Socials and Speeches*\n\n"
+        "👤 *Step 26 of 26: Founders' Socials and Speeches*\n\n"
         "Please provide *links to founders' social media profiles and any speeches/presentations*:\n\n"
         "💡 Include X/Twitter, LinkedIn, YouTube talks, podcast appearances, etc.\n"
         "💡 Separate multiple links with commas\n"
@@ -1031,6 +1076,8 @@ async def get_founders_socials(update: Update, context: ContextTypes.DEFAULT_TYP
         'docs': context.user_data.get('docs', ''),
         'x_twitter': context.user_data.get('x_twitter', ''),
         'github': context.user_data.get('github', ''),
+        'youtube': context.user_data.get('youtube', ''),
+        'medium': context.user_data.get('medium', ''),
         'calendly': context.user_data.get('calendly', ''),
         'insider_payout_address': context.user_data.get('insider_payout_address', ''),
         'spending_limit_addresses': context.user_data.get('spending_limit_addresses', ''),
@@ -1124,6 +1171,8 @@ async def get_application():
                 DOCS: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_docs)],
                 X_TWITTER: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_x_twitter)],
                 GITHUB: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_github)],
+                YOUTUBE: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_youtube)],
+                MEDIUM: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_medium)],
                 CALENDLY: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_calendly)],
                 INSIDER_PAYOUT_ADDRESS: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_insider_payout_address)],
                 SPENDING_LIMIT_ADDRESSES: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_spending_limit_addresses)],
