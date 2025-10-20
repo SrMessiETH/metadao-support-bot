@@ -32,7 +32,7 @@ BOT_TOKEN = os.environ.get('BOT_TOKEN')
 if not BOT_TOKEN:
     raise ValueError("BOT_TOKEN env var is required")
 SUPPORT_CHAT_ID = int(os.environ.get('SUPPORT_CHAT_ID', 0)) if os.environ.get('SUPPORT_CHAT_ID') else None
-SHEET_NAME = os.environ.get('SHEET_NAME', 'MetaDAO Support Requests')
+SHEET_NAME = os.environ.get('SHEET_NAME', 'MetaDAO Get Listed Requests')
 
 # Google Sheets setup
 GOOGLE_CREDENTIALS_JSON = os.environ.get('GOOGLE_CREDENTIALS')
