@@ -858,13 +858,13 @@ async def get_performance_unlock_time(update: Update, context: ContextTypes.DEFA
         "*This includes but is not limited to:*\n"
         "• Domain names\n"
         "• Software and codebases\n"
-        "• Social media accounts (Twitter/X handles, Discord, Telegram, YouTube channels, Medium blogs, etc.)\n"
+        "• Social media accounts (Twitter/X handles, Discord, Telegram, YouTube channels, Medium blogs, etc)\n"
         "• Revenue rights\n"
         "• Trademarks and patents\n"
         "• Brand assets\n\n"
         "🔴 *Everything is given up to the DAO.* This is what makes our tokens work the way they do.\n\n"
-        "Note: In the following steps, we will ask for specific links including domain, Discord, Telegram, documentation, X/Twitter, GitHub, YouTube, Medium, etc.\n\n"
-        "Please list ALL intellectual property that will be transferred to the project's entity:\n\n"
+        "Note: In the following steps, we will ask for specific links including domain, Discord, Telegram, documentation, X/Twitter, GitHub, YouTube and Medium.\n\n"
+        "Please list ALL intellectual property that will be transferred to the project's entity besides the mentioned above like revenue rights, trademarks and patents and brand assets:\n\n"
         "💡 Type 'none' if you don't have any intellectual property to transfer",
         parse_mode='Markdown'
     )
