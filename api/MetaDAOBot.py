@@ -90,7 +90,7 @@ META_CA = 'METAwkXcqyXKy1AtsSgJ8JiUHwGCafnZL38n3vYmeta'
 
 def main_inline_keyboard():
     keyboard = [
-        [InlineKeyboardButton("🚀 Get Listed", callback_data='get_listed')], 
+        [InlineKeyboardButton("🚀 Get Listed", callback_data='get_listed')],
         [InlineKeyboardButton("📅 ICOs & Calendar", callback_data='icos')],
         [InlineKeyboardButton("📚 How Launches Work", callback_data='how_launches_work')],
         [InlineKeyboardButton("🎯 Introduction to Futarchy", callback_data='futarchy_intro')],
@@ -321,8 +321,7 @@ async def help_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     await update.message.reply_text(
         help_text,
         parse_mode='Markdown',
-        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Main Menu", callback_data='main_menu')]]),
-        disable_web_page_preview=True
+        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Main Menu", callback_data='main_menu')]])
     )
 
 async def cancel_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -383,8 +382,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         await query.edit_message_text(
             text=f"*{title}*\n\n{description}\n\n🔗 [View Documentation]({link})",
             parse_mode='Markdown',
-            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("⬅️ Back to Main Menu", callback_data='main_menu')]]),
-            disable_web_page_preview=True
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("⬅️ Back to Main Menu", callback_data='main_menu')]])
         )
         return
 
@@ -401,8 +399,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         await query.edit_message_text(
             text=f"*{title}*\n\n{description}\n\n🔗 [Learn More]({link})",
             parse_mode='Markdown',
-            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("⬅️ Back to Main Menu", callback_data='main_menu')]]),
-            disable_web_page_preview=True
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("⬅️ Back to Main Menu", callback_data='main_menu')]])
         )
         return
 
