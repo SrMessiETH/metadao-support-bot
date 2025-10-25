@@ -529,7 +529,7 @@ async def support_category_selected(update: Update, context: ContextTypes.DEFAUL
     await query.edit_message_text(
         f"{emoji} *Support Request: {subcategory}*\n\n"
         "Great! I'll help you submit your request to our team.\n\n"
-        "📝 *Step 1 of 3:* Please provide your full name:",
+        "📝 *Step 1 of 4:* Please provide your full name:",
         parse_mode='Markdown'
     )
     return NAME
@@ -540,7 +540,7 @@ async def get_name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     context.user_data['name'] = update.message.text
     await update.message.reply_text(
         f"✅ Got it, *{update.message.text}*!\n\n"
-        "📧 *Step 2 of 3:* Please provide your email address so we can get back to you:",
+        "📧 *Step 2 of 4:* Please provide your email address so we can get back to you:",
         parse_mode='Markdown'
     )
     return EMAIL
@@ -554,7 +554,7 @@ async def get_email(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     
     await update.message.reply_text(
         f"✅ Perfect!\n\n"
-        f"📝 *Step 3 of 3:* Please describe your *{subcategory.lower()}* in detail:",
+        f"📝 *Step 3 of 4:* Please describe your *{subcategory.lower()}* in detail:",
         parse_mode='Markdown'
     )
     return QUESTION
