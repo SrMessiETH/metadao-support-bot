@@ -10,6 +10,7 @@ from google.oauth2.service_account import Credentials
 from http.server import BaseHTTPRequestHandler
 import asyncio
 import re
+from groq import Groq
 
 # Enable logging
 logging.basicConfig(
@@ -19,7 +20,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # States for support conversation
-SUPPORT_CATEGORY, NAME, EMAIL, QUESTION = range(4)
+SUPPORT_CATEGORY, NAME, EMAIL, QUESTION, IMAGE_URL = range(5)
 
 # States for get_listed conversation
 (GET_LISTED_CONFIRM, FOUNDER_EMAIL, PROJECT_EMAIL, PROJECT_NAME_SHORT, PROJECT_DESC_LONG, TOKEN_NAME, TOKEN_TICKER, 
@@ -34,6 +35,13 @@ if not BOT_TOKEN:
     raise ValueError("BOT_TOKEN env var is required")
 SUPPORT_CHAT_ID = int(os.environ.get('SUPPORT_CHAT_ID', 0)) if os.environ.get('SUPPORT_CHAT_ID') else None
 SHEET_NAME = os.environ.get('SHEET_NAME', 'MetaDAO Get Listed Requests')
+
+GROQ_API_KEY = os.environ.get('GROQ_API_KEY')
+if not GROQ_API_KEY:
+    logger.warning("GROQ_API_KEY env var missing—AI responses disabled")
+    groq_client = None
+else:
+    groq_client = Groq(api_key=GROQ_API_KEY)
 
 # Google Sheets setup
 GOOGLE_CREDENTIALS_JSON = os.environ.get('GOOGLE_CREDENTIALS')
@@ -71,6 +79,14 @@ RESOURCE_LINKS = {
     'zklsol': 'https://www.idontbelieve.link/?p=27eeb88879cf81269d9ece79cba66623&pm=c',
     'evora': 'https://www.idontbelieve.link/?p=283eb88879cf80aaa0b7ed2c1f691d2d&pm=c',
     'aurum': 'https://www.idontbelieve.link/?p=285eb88879cf808e83d3f2ea73b00647&pm=c',
+    'twitter': 'https://x.com/MetaDAOProject',
+    'telegram': 'https://t.me/+WXdyUMb4-M9lNmNh',
+    'discord': 'https://discord.com/invite/metadao',
+    'youtube': 'https://www.youtube.com/@metaDAOproject',
+    'blog': 'https://blog.metadao.fi/',
+    'futarchyamm': 'https://dune.com/jacktheguy/futarchy-amm-metrics',
+    'github': 'https://github.com/metaDAOproject',
+    'markets': 'https://v1.metadao.fi/markets',
 }
 
 # Known project info
@@ -89,15 +105,8 @@ PROJECT_INFO = {
 META_CA = 'METAwkXcqyXKy1AtsSgJ8JiUHwGCafnZL38n3vYmeta'
 
 def main_inline_keyboard():
-    # Visual centering with symmetric padding spaces
     keyboard = [
         [InlineKeyboardButton("🚀  Get Listed  ", callback_data='get_listed')],
-        [InlineKeyboardButton("📅  ICOs & Calendar  ", callback_data='icos')],
-        [InlineKeyboardButton("📚  How Launches Work  ", callback_data='how_launches_work')],
-        [InlineKeyboardButton("🎯  Introduction to Futarchy  ", callback_data='futarchy_intro')],
-        [InlineKeyboardButton("📊  Proposals  ", callback_data='proposals')],
-        [InlineKeyboardButton("💼  For Entrepreneurs  ", callback_data='entrepreneurs')],
-        [InlineKeyboardButton("💰  For Investors  ", callback_data='investors')],
         [InlineKeyboardButton("💬  Support Request  ", callback_data='support_request')]
     ]
     return InlineKeyboardMarkup(keyboard)
@@ -142,7 +151,7 @@ def get_sheets_client(sheet_name='Support Requests'):
             try:
                 sheet = spreadsheet.add_worksheet(title=sheet_name, rows=1000, cols=50)
                 if sheet_name == 'Support Requests':
-                    headers = ['Timestamp', 'Name', 'Email', 'Question', 'Category', 'Subcategory']
+                    headers = ['Timestamp', 'Name', 'Email', 'Question', 'Category', 'Subcategory', 'Image URL']
                     sheet.append_row(headers)
                     logger.info(f"Created sheet '{sheet_name}' with horizontal layout")
                 else:
@@ -156,7 +165,7 @@ def get_sheets_client(sheet_name='Support Requests'):
         logger.error(f"Error setting up Google Sheets for sheet '{sheet_name}': {e}", exc_info=True)
         return None
 
-def log_request(name, email, question, category, subcategory=None, extra_data=None):
+def log_request(name, email, question, category, subcategory=None, image_url=None, extra_data=None):
     if category == 'Support Request':
         sheet_name = 'Support Requests'
     elif category == 'Get Listed':
@@ -179,8 +188,7 @@ def log_request(name, email, question, category, subcategory=None, extra_data=No
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         
         if category == 'Support Request':
-            # Horizontal layout - append one row
-            row = [timestamp, name, email, question, category, subcategory or '']
+            row = [timestamp, name, email, question, category, subcategory or '', image_url or '']
             try:
                 sheet.append_row(row)
                 logger.info(f"Request logged to '{sheet_name}' sheet: {name}, {email}, {category}, {subcategory}")
@@ -259,6 +267,7 @@ async def forward_to_support(update: Update, context: ContextTypes.DEFAULT_TYPE)
             f"Question: {context.user_data.get('question')}\n"
             f"Subcategory: {context.user_data.get('subcategory', 'N/A')}\n"
             f"Category: {context.user_data.get('category', 'General')}\n"
+            f"Image URL: {context.user_data.get('image_url', 'N/A')}\n"
             f"User ID: {user.id}\n"
             f"Chat Type: {chat_type}"
         )
@@ -267,23 +276,70 @@ async def forward_to_support(update: Update, context: ContextTypes.DEFAULT_TYPE)
         except Exception as e:
             logger.error(f"Failed to forward support request to chat {SUPPORT_CHAT_ID}: {e}")
 
+async def get_ai_response(user_message: str) -> str:
+    """Generate AI response using Groq"""
+    if not groq_client:
+        return "I'm sorry, AI responses are currently unavailable. Please use the menu buttons to navigate or submit a support request."
+    
+    try:
+        # Build context with all available resources
+        resources_context = "Available MetaDAO resources:\n"
+        for key, url in RESOURCE_LINKS.items():
+            resources_context += f"- {key}: {url}\n"
+        
+        system_prompt = f"""You are a helpful MetaDAO assistant bot. Your role is to answer questions about MetaDAO, provide relevant links, and guide users.
+
+{resources_context}
+
+META Contract Address: {META_CA}
+
+Key information:
+- MetaDAO is a futarchy-based governance platform on Solana
+- We help projects launch ICOs and manage governance through prediction markets
+- Users can get their projects listed or submit support requests through our bot
+
+When users ask questions:
+1. Provide clear, concise answers
+2. Include relevant links from the resources above
+3. Be friendly and helpful
+4. If you don't know something, suggest they submit a support request
+5. Always format links as markdown: [text](url)
+
+Keep responses under 300 words."""
+
+        chat_completion = groq_client.chat.completions.create(
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_message}
+            ],
+            model="llama-3.3-70b-versatile",
+            temperature=0.7,
+            max_tokens=500
+        )
+        
+        return chat_completion.choices[0].message.content
+    except Exception as e:
+        logger.error(f"Error getting AI response: {e}", exc_info=True)
+        return "I'm having trouble processing your request right now. Please try again or submit a support request for assistance."
+
 async def start_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if update.effective_chat.type != 'private':
         return
     user = update.effective_user
     welcome_text = (
         f"👋 *Welcome to MetaDAO, {user.first_name}!*\n\n"
-        "I'm your MetaDAO assistant, here to help you navigate our platform.\n\n"
-        "What I can help you with:\n"
-        "📅 View upcoming ICOs and calendar\n"
-        "📚 Learn about our launch process\n"
-        "🎯 Understand futarchy governance\n"
-        "💬 Submit support requests\n\n"
+        "I'm your MetaDAO AI assistant, here to help you navigate our platform.\n\n"
+        "💬 *Ask me anything!* I can answer questions about:\n"
+        "• MetaDAO platform and futarchy governance\n"
+        "• Upcoming ICOs and projects\n"
+        "• How to get your project listed\n"
+        "• Documentation and resources\n"
+        "• Contract addresses and links\n\n"
         "📖 *Quick Links:*\n"
         "• Documentation: [docs.metadao.fi](https://docs.metadao.fi/)\n"
         "• Website: [metadao.fi](https://metadao.fi)\n"
-        "• Notion: [idontbelieve.link](https://www.idontbelieve.link)\n\n"
-        "👇 *Select an option below to get started:*"
+        "• Calendar: [idontbelieve.link](https://www.idontbelieve.link)\n\n"
+        "👇 *Or use these buttons for specific actions:*"
     )
     await update.message.reply_text(
         welcome_text,
@@ -296,27 +352,20 @@ async def help_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     if update.effective_chat.type != 'private':
         return
     help_text = (
-        "🤖 *MetaDAO Support Bot Help*\n\n"
+        "🤖 *MetaDAO AI Assistant Help*\n\n"
+        "*How to use:*\n"
+        "• Simply type your question and I'll answer!\n"
+        "• Use the buttons below for structured forms\n"
+        "• Type /cancel to cancel any active operation\n\n"
+        "*What I can help with:*\n"
+        "• Information about MetaDAO and futarchy\n"
+        "• Links to documentation, ICOs, and resources\n"
+        "• Contract addresses and project details\n"
+        "• General questions about the platform\n\n"
         "*Available Commands:*\n"
         "/start - Start the bot and show main menu\n"
         "/help - Show this help message\n"
-        "/cancel - Cancel current operation\n"
-        "/ca - Get META contract address\n"
-        "/web - Get MetaDAO website link\n"
-        "/docs - Get documentation link\n"
-        "/icos - Get calendar and ICOs link\n"
-        "/markets - View active markets\n"
-        "/twitter - Follow us on X/Twitter\n"
-        "/telegram - Join our Telegram community\n"
-        "/discord - Join our Discord server\n"
-        "/youtube - Subscribe to our YouTube\n"
-        "/blog - Read our blog\n"
-        "/futarchyamm - View AMM metrics\n"
-        "/github - Explore our GitHub\n\n"
-        "*How to use:*\n"
-        "• Use the inline menu buttons to navigate\n"
-        "• Select 'Support Request' to submit a question\n"
-        "• Type 'ca' to get the META token contract address\n\n"
+        "/cancel - Cancel current operation\n\n"
         "*Resources:*\n"
         "📚 Documentation: https://docs.metadao.fi/\n"
         "🌐 Website: https://metadao.fi"
@@ -361,16 +410,17 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         # Use the same welcome text as start_handler for consistency
         welcome_text = (
             f"👋 *Welcome to MetaDAO, {update.effective_user.first_name}!*\n\n"
-            "I'm your MetaDAO assistant, here to help you navigate our platform.\n\n"
-            "What I can help you with:\n"
-            "📅 View upcoming ICOs and calendar\n"
-            "📚 Learn about our launch process\n"
-            "🎯 Understand futarchy governance\n"
-            "💬 Submit support requests\n\n"
+            "I'm your MetaDAO AI assistant, here to help you navigate our platform.\n\n"
+            "💬 *Ask me anything!* I can answer questions about:\n"
+            "• MetaDAO platform and futarchy governance\n"
+            "• Upcoming ICOs and projects\n"
+            "• How to get your project listed\n"
+            "• Documentation and resources\n"
+            "• Contract addresses and links\n\n"
             "📖 *Quick Links:*\n"
             "• Documentation: [docs.metadao.fi](https://docs.metadao.fi/)\n"
             "• Website: [metadao.fi](https://metadao.fi)\n\n"
-            "👇 *Select an option below to get started:*"
+            "👇 *Or use these buttons for specific actions:*"
         )
         await query.edit_message_text(
             text=welcome_text,
@@ -514,12 +564,34 @@ async def get_question(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
         return ConversationHandler.END
     question = update.message.text
     context.user_data['question'] = question
+    
+    await update.message.reply_text(
+        f"✅ Thank you!\n\n"
+        f"📸 *Step 4 of 4:* Please provide an *image URL* related to your issue (optional):\n\n"
+        "💡 If you have a screenshot or image that helps explain your issue, paste the URL here\n"
+        "💡 Type 'none' or 'skip' if you don't have an image",
+        parse_mode='Markdown'
+    )
+    return IMAGE_URL
+
+async def get_image_url(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    if not context.user_data.get('support_active'):
+        return ConversationHandler.END
+    
+    image_url = update.message.text
+    if image_url.lower() in ['none', 'skip', 'n/a']:
+        context.user_data['image_url'] = None
+    else:
+        context.user_data['image_url'] = image_url
+    
     context.user_data['category'] = 'Support Request'
     name = context.user_data['name']
     email = context.user_data['email']
+    question = context.user_data['question']
     subcategory = context.user_data.get('subcategory', 'General Inquiry')
+    image_url_value = context.user_data.get('image_url')
 
-    log_request(name, email, question, 'Support Request', subcategory=subcategory)
+    log_request(name, email, question, 'Support Request', subcategory=subcategory, image_url=image_url_value)
     await forward_to_support(update, context)
 
     response = (
@@ -528,7 +600,7 @@ async def get_question(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
         f"📧 We'll get back to you via email at:\n"
         f"`{email}`\n\n"
         "⏱️ *Expected response time:* 24-48 hours\n\n"
-        "Need anything else? Feel free to explore the menu below!"
+        "Need anything else? Feel free to ask me any questions or explore the menu below!"
     )
 
     await update.message.reply_text(
@@ -578,7 +650,7 @@ async def icos_command_handler(update: Update, context: ContextTypes.DEFAULT_TYP
 async def markets_command_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await update.message.reply_text(
         "📊 *MetaDAO Markets*\n\n"
-        "View active markets: https://v1.metadao.fi/markets\n\n"
+        f"View active markets: {RESOURCE_LINKS['markets']}\n\n"
         "Participate in governance by trading on proposal markets!",
         parse_mode='Markdown',
         disable_web_page_preview=True
@@ -588,7 +660,7 @@ async def twitter_command_handler(update: Update, context: ContextTypes.DEFAULT_
     await update.message.reply_text(
         "🐦 *Follow MetaDAO on X (Twitter)*\n\n"
         "Stay updated with the latest news and announcements:\n"
-        "https://x.com/MetaDAOProject\n\n"
+        f"{RESOURCE_LINKS['twitter']}\n\n"
         "Join our community and be part of the conversation!",
         parse_mode='Markdown',
         disable_web_page_preview=True
@@ -598,7 +670,7 @@ async def telegram_command_handler(update: Update, context: ContextTypes.DEFAULT
     await update.message.reply_text(
         "💬 *Join MetaDAO on Telegram*\n\n"
         "Connect with our community:\n"
-        "https://t.me/+WXdyUMb4-M9lNmNh\n\n"
+        f"{RESOURCE_LINKS['telegram']}\n\n"
         "Ask questions, share ideas, and stay updated!",
         parse_mode='Markdown',
         disable_web_page_preview=True
@@ -608,7 +680,7 @@ async def discord_command_handler(update: Update, context: ContextTypes.DEFAULT_
     await update.message.reply_text(
         "💬 *Join MetaDAO on Discord*\n\n"
         "Connect with our community:\n"
-        "https://discord.com/invite/metadao\n\n"
+        f"{RESOURCE_LINKS['discord']}\n\n"
         "Participate in discussions and get support!",
         parse_mode='Markdown',
         disable_web_page_preview=True
@@ -618,7 +690,7 @@ async def youtube_command_handler(update: Update, context: ContextTypes.DEFAULT_
     await update.message.reply_text(
         "📺 *MetaDAO on YouTube*\n\n"
         "Watch tutorials, updates, and more:\n"
-        "https://www.youtube.com/@metaDAOproject\n\n"
+        f"{RESOURCE_LINKS['youtube']}\n\n"
         "Subscribe to stay informed!",
         parse_mode='Markdown',
         disable_web_page_preview=True
@@ -628,7 +700,7 @@ async def blog_command_handler(update: Update, context: ContextTypes.DEFAULT_TYP
     await update.message.reply_text(
         "📝 *MetaDAO Blog*\n\n"
         "Read our latest articles and updates:\n"
-        "https://blog.metadao.fi/\n\n"
+        f"{RESOURCE_LINKS['blog']}\n\n"
         "Deep dives, announcements, and insights!",
         parse_mode='Markdown',
         disable_web_page_preview=True
@@ -638,7 +710,7 @@ async def futarchyamm_command_handler(update: Update, context: ContextTypes.DEFA
     await update.message.reply_text(
         "📊 *Futarchy AMM Metrics*\n\n"
         "View detailed analytics and metrics:\n"
-        "https://dune.com/jacktheguy/futarchy-amm-metrics\n\n"
+        f"{RESOURCE_LINKS['futarchyamm']}\n\n"
         "Track performance and market data!",
         parse_mode='Markdown',
         disable_web_page_preview=True
@@ -648,7 +720,7 @@ async def github_command_handler(update: Update, context: ContextTypes.DEFAULT_T
     await update.message.reply_text(
         "💻 *MetaDAO on GitHub*\n\n"
         "Explore our open-source code:\n"
-        "https://github.com/metaDAOproject\n\n"
+        f"{RESOURCE_LINKS['github']}\n\n"
         "Contribute, review, and build with us!",
         parse_mode='Markdown',
         disable_web_page_preview=True
@@ -666,7 +738,29 @@ async def handle_ca(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         )
 
 async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    pass
+    # Only handle private messages that aren't part of a conversation
+    if update.effective_chat.type != 'private':
+        return
+    
+    # Check if user is in an active conversation
+    if context.user_data.get('support_active') or context.user_data.get('get_listed_active'):
+        return
+    
+    # Get AI response
+    user_message = update.message.text
+    logger.info(f"Processing AI request from user {update.effective_user.id}: {user_message}")
+    
+    # Send typing indicator
+    await update.message.chat.send_action(action="typing")
+    
+    ai_response = await get_ai_response(user_message)
+    
+    await update.message.reply_text(
+        ai_response,
+        parse_mode='Markdown',
+        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🏠 Main Menu", callback_data='main_menu')]]),
+        disable_web_page_preview=True
+    )
 
 async def get_listed_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     query = update.callback_query
@@ -1245,6 +1339,7 @@ async def get_application():
                 NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_name)],
                 EMAIL: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_email)],
                 QUESTION: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_question)],
+                IMAGE_URL: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_image_url)],
             },
             fallbacks=[CommandHandler('cancel', cancel_handler, filters=filters.ChatType.PRIVATE)],
         )
