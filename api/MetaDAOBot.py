@@ -23,11 +23,12 @@ logger = logging.getLogger(__name__)
 SUPPORT_CATEGORY, NAME, EMAIL, QUESTION, IMAGE_URL = range(5)
 
 # States for get_listed conversation
-(GET_LISTED_CONFIRM, FOUNDER_EMAIL, PROJECT_EMAIL, PROJECT_NAME_SHORT, PROJECT_DESC_LONG, TOKEN_NAME, TOKEN_TICKER, 
+(GET_LISTED_CONFIRM, FOUNDER_EMAIL, PROJECT_EMAIL, PROJECT_NAME_SHORT, PROJECT_CATEGORY, PROJECT_DESC_LONG, TOKEN_NAME, TOKEN_TICKER, 
  PROJECT_IMAGE, TOKEN_IMAGE, MIN_RAISE, MONTHLY_BUDGET, PERFORMANCE_PACKAGE, 
  PERFORMANCE_UNLOCK_TIME, INTELLECTUAL_PROPERTY, DOMAIN, DISCORD, 
  TELEGRAM_LINK, DOCS, X_TWITTER, GITHUB, YOUTUBE, MEDIUM, CALENDLY, 
- INSIDER_PAYOUT_ADDRESS, SPENDING_LIMIT_ADDRESSES, X_ARTICLE, FOUNDERS_SOCIALS) = range(12, 39)
+ INSIDER_PAYOUT_ADDRESS, SPENDING_LIMIT_ADDRESSES, X_ARTICLE, FOUNDERS_SOCIALS,
+ TEAM_BACKGROUND, TIMELINE, RECOGNITION, COMPETITORS_VISION, MISC) = range(12, 45)
 
 # Secrets from env vars
 BOT_TOKEN = os.environ.get('BOT_TOKEN')
@@ -210,6 +211,7 @@ def log_request(name, email, question, category, subcategory=None, image_url=Non
                         ('Founder Email', extra_data.get('founder_email', '')),
                         ('Project Email', extra_data.get('project_email', '')),
                         ('Project Name Short', extra_data.get('project_name_short', '')),
+                        ('Project Category', extra_data.get('project_category', '')),
                         ('Project Description', extra_data.get('project_desc_long', '')),
                         ('Token Name', extra_data.get('token_name', '')),
                         ('Token Ticker', extra_data.get('token_ticker', '')),
@@ -233,6 +235,11 @@ def log_request(name, email, question, category, subcategory=None, image_url=Non
                         ('Spending Limit Addresses', extra_data.get('spending_limit_addresses', '')),
                         ('X Article', extra_data.get('x_article', '')),
                         ('Founders Socials', extra_data.get('founders_socials', '')),
+                        ('Team Background', extra_data.get('team_background', '')),
+                        ('Timeline', extra_data.get('timeline', '')),
+                        ('Recognition', extra_data.get('recognition', '')),
+                        ('Competitors Vision', extra_data.get('competitors_vision', '')),
+                        ('Misc', extra_data.get('misc', '')),
                         ('Founder Username', extra_data.get('founder_username', '')),
                         ('Founder ID', extra_data.get('founder_id', ''))
                     ]
@@ -784,6 +791,7 @@ async def get_listed_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         "🚀 *Get Your Project Listed on MetaDAO*\n\n"
         "To get listed, you'll need to provide:\n\n"
         "📝 *Project Information:*\n"
+        "• Project category (DeFi, DePIN, Gaming, etc.)\n"
         "• Project name and description (short & long versions)\n"
         "• Token name, ticker, and address\n"
         "• Links (domain, docs, social media, GitHub, YouTube, Medium, Calendly)\n\n"
@@ -799,8 +807,12 @@ async def get_listed_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         "📜 *Additional:*\n"
         "• Intellectual property list\n"
         "• X article about the project\n"
-        "• Founders' socials and speeches\n\n"
-        "⏱️ *Time required:* ~10-15 minutes\n\n"
+        "• Founders' socials and speeches\n"
+        "• Team background and highlights\n"
+        "• Timeline and progress stage\n"
+        "• Recognition and achievements\n"
+        "• Competitors and market vision\n\n"
+        "⏱️ *Time required:* ~15-20 minutes\n\n"
         "Ready to begin?",
         parse_mode='Markdown',
         reply_markup=InlineKeyboardMarkup(keyboard)
@@ -814,7 +826,7 @@ async def get_listed_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE)
     if query.data == 'get_listed_yes':
         context.user_data['get_listed_active'] = True
         await query.edit_message_text(
-            "🎯 *Step 1 of 26: Founder's Email*\n\n"
+            "🎯 *Step 1 of 32: Founder's Email*\n\n"
             "Please provide your *email address* (founder's personal email):\n\n"
             "💡 We'll use this to contact you about your submission\n\n"
             "📻 *Important:* Before you continue, please listen to this X space for crucial information about intellectual property, revenues, and how MetaDAO works:\n"
@@ -836,7 +848,7 @@ async def get_founder_email(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     context.user_data['founder_email'] = update.message.text
     await update.message.reply_text(
         "✅ Got it!\n\n"
-        "📧 *Step 2 of 26: Project Email*\n\n"
+        "📧 *Step 2 of 32: Project Email*\n\n"
         "Please provide your *project's official email address*:\n\n"
         "💡 This is the email for your project/company (can be the same as founder's email if you don't have a separate one)",
         parse_mode='Markdown'
@@ -849,7 +861,7 @@ async def get_project_email(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     context.user_data['project_email'] = update.message.text
     await update.message.reply_text(
         "✅ Perfect!\n\n"
-        "🎯 *Step 3 of 26: Project Name & Short Description*\n\n"
+        "🎯 *Step 3 of 32: Project Name & Short Description*\n\n"
         "Please provide your *project name* and a *1-2 sentence description*:\n\n"
         "💡 *Example:*\n"
         "\"Umbra - A privacy-focused DeFi protocol enabling anonymous transactions on Solana.\"\n\n"
@@ -862,9 +874,56 @@ async def get_project_name_short(update: Update, context: ContextTypes.DEFAULT_T
     if not context.user_data.get('get_listed_active'):
         return ConversationHandler.END
     context.user_data['project_name_short'] = update.message.text
+    
+    keyboard = [
+        [InlineKeyboardButton("💰 DeFi", callback_data='category_defi')],
+        [InlineKeyboardButton("🌐 DePIN", callback_data='category_depin')],
+        [InlineKeyboardButton("🏗️ Infrastructure", callback_data='category_infrastructure')],
+        [InlineKeyboardButton("🎮 Gaming", callback_data='category_gaming')],
+        [InlineKeyboardButton("🖼️ NFT/Metaverse", callback_data='category_nft')],
+        [InlineKeyboardButton("👥 Social", callback_data='category_social')],
+        [InlineKeyboardButton("📦 Other", callback_data='category_other')]
+    ]
+    
     await update.message.reply_text(
         "✅ Great start!\n\n"
-        "📝 *Step 4 of 26: Detailed Description*\n\n"
+        "🏷️ *Step 4 of 32: Project Category*\n\n"
+        "Please select the category that best describes your project:\n\n"
+        "💰 *DeFi* - Decentralized Finance\n"
+        "🌐 *DePIN* - Decentralized Physical Infrastructure\n"
+        "🏗️ *Infrastructure* - Blockchain infrastructure and tools\n"
+        "🎮 *Gaming* - Web3 gaming and entertainment\n"
+        "🖼️ *NFT/Metaverse* - NFTs and metaverse projects\n"
+        "👥 *Social* - Social platforms and communities\n"
+        "📦 *Other* - Other categories",
+        parse_mode='Markdown',
+        reply_markup=InlineKeyboardMarkup(keyboard)
+    )
+    return PROJECT_CATEGORY
+
+async def get_project_category(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    if not context.user_data.get('get_listed_active'):
+        return ConversationHandler.END
+    
+    query = update.callback_query
+    await query.answer()
+    
+    category_map = {
+        'category_defi': 'DeFi',
+        'category_depin': 'DePIN',
+        'category_infrastructure': 'Infrastructure',
+        'category_gaming': 'Gaming',
+        'category_nft': 'NFT/Metaverse',
+        'category_social': 'Social',
+        'category_other': 'Other'
+    }
+    
+    category = category_map.get(query.data, 'Other')
+    context.user_data['project_category'] = category
+    
+    await query.edit_message_text(
+        f"✅ Category selected: *{category}*\n\n"
+        "📝 *Step 5 of 32: Detailed Description*\n\n"
         "Now provide a *longer, more detailed description* of your project:\n\n"
         "💡 *What to include:*\n"
         "• Your mission and vision\n"
@@ -881,7 +940,7 @@ async def get_project_desc_long(update: Update, context: ContextTypes.DEFAULT_TY
     context.user_data['project_desc_long'] = update.message.text
     await update.message.reply_text(
         "✅ Excellent!\n\n"
-        "🪙 *Step 5 of 26: Token Name*\n\n"
+        "🪙 *Step 6 of 32: Token Name*\n\n"
         "What is your *token name*?\n\n"
         "💡 *Example:* \"Omnipair\" or \"Umbra Token\"",
         parse_mode='Markdown'
@@ -894,7 +953,7 @@ async def get_token_name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     context.user_data['token_name'] = update.message.text
     await update.message.reply_text(
         "✅ Got it!\n\n"
-        "🏷️ *Step 6 of 26: Token Ticker*\n\n"
+        "🏷️ *Step 7 of 32: Token Ticker*\n\n"
         "What is your *token ticker symbol*?\n\n"
         "💡 *Example:* \"OMFG\" for Omnipair or \"UMBRA\"",
         parse_mode='Markdown'
@@ -907,7 +966,7 @@ async def get_token_ticker(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     context.user_data['token_ticker'] = update.message.text
     await update.message.reply_text(
         "✅ Perfect!\n\n"
-        "🖼️ *Step 7 of 26: Project Image*\n\n"
+        "🖼️ *Step 8 of 32: Project Image*\n\n"
         "Please provide the *URL for your project image*:\n\n"
         "💡 Supported formats: PNG, JPG, SVG\n"
         "💡 Recommended size: 512x512px or larger",
@@ -921,7 +980,7 @@ async def get_project_image(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     context.user_data['project_image'] = update.message.text
     await update.message.reply_text(
         "✅ Image saved!\n\n"
-        "🎨 *Step 8 of 26: Token Image*\n\n"
+        "🎨 *Step 9 of 32: Token Image*\n\n"
         "Please provide the *URL for your token image*:\n\n"
         "💡 This will be displayed on trading venues like Jupiter\n"
         "💡 Type 'same' if it's the same as your project image",
@@ -939,7 +998,7 @@ async def get_token_image(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         context.user_data['token_image'] = token_image
     await update.message.reply_text(
         "✅ Looks good!\n\n"
-        "💵 *Step 9 of 26: Minimum Raise Amount*\n\n"
+        "💵 *Step 10 of 32: Minimum Raise Amount*\n\n"
         "What is your *minimum raise amount*?\n\n"
         "💡 This is how much your project needs to proceed\n"
         "💡 If you raise less than this, the sale will be refunded\n\n"
@@ -954,7 +1013,7 @@ async def get_min_raise(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
     context.user_data['min_raise'] = update.message.text
     await update.message.reply_text(
         "✅ Noted!\n\n"
-        "📊 *Step 10 of 26: Monthly Team Budget*\n\n"
+        "📊 *Step 11 of 32: Monthly Team Budget*\n\n"
         "What is your *monthly team budget*?\n\n"
         "💡 This is how much your team needs every month from the treasury\n"
         "💡 Cannot be larger than 1/6th of your minimum raise amount\n\n"
@@ -969,7 +1028,7 @@ async def get_monthly_budget(update: Update, context: ContextTypes.DEFAULT_TYPE)
     context.user_data['monthly_budget'] = update.message.text
     await update.message.reply_text(
         "✅ Understood!\n\n"
-        "🎁 *Step 11 of 26: Performance Package*\n\n"
+        "🎁 *Step 12 of 32: Performance Package*\n\n"
         "How many tokens do you want to allocate to the *performance package*?\n\n"
         "💡 You can pre-allocate up to 15M additional tokens\n"
         "💡 The package splits into 5 equal tranches that unlock at 2x, 4x, 8x, 16x, and 32x ICO price\n\n"
@@ -984,7 +1043,7 @@ async def get_performance_package(update: Update, context: ContextTypes.DEFAULT_
     context.user_data['performance_package'] = update.message.text
     await update.message.reply_text(
         "✅ Great!\n\n"
-        "⏰ *Step 12 of 26: Minimum Unlock Time*\n\n"
+        "⏰ *Step 13 of 32: Minimum Unlock Time*\n\n"
         "What is the *minimum unlock time* for the performance package?\n\n"
         "💡 Must be at least 18 months from ICO date\n"
         "💡 *Example:* \"18 months\" or \"24 months\"\n"
@@ -999,7 +1058,7 @@ async def get_performance_unlock_time(update: Update, context: ContextTypes.DEFA
     context.user_data['performance_unlock_time'] = update.message.text
     await update.message.reply_text(
         "✅ Noted!\n\n"
-        "📜 *Step 13 of 26: Intellectual Property*\n\n"
+        "📜 *Step 14 of 32: Intellectual Property*\n\n"
         "⚠️ *IMPORTANT WARNING:*\n"
         "When you fill out your document, it MUST include a complete list of intellectual properties that the founder(s) will give up to the project's entity.\n\n"
         "*This includes but is not limited to:*\n"
@@ -1023,7 +1082,7 @@ async def get_intellectual_property(update: Update, context: ContextTypes.DEFAUL
     context.user_data['intellectual_property'] = update.message.text
     await update.message.reply_text(
         "✅ Great!\n\n"
-        "🌐 *Step 14 of 26: Domain*\n\n"
+        "🌐 *Step 15 of 32: Domain*\n\n"
         "What is your *project's website domain*?\n\n"
         "💡 *Example:* \"https://myproject.com\"\n"
         "💡 Type 'none' if you don't have a website",
@@ -1037,7 +1096,7 @@ async def get_domain(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     context.user_data['domain'] = update.message.text
     await update.message.reply_text(
         "✅ Got it!\n\n"
-        "💬 *Step 15 of 26: Discord*\n\n"
+        "💬 *Step 16 of 32: Discord*\n\n"
         "What is your *Discord server invite link*?\n\n"
         "💡 *Example:* \"https://discord.gg/myproject\"\n"
         "💡 Type 'none' if you don't have a Discord server",
@@ -1051,7 +1110,7 @@ async def get_discord(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
     context.user_data['discord'] = update.message.text
     await update.message.reply_text(
         "✅ Noted!\n\n"
-        "📱 *Step 16 of 26: Telegram*\n\n"
+        "📱 *Step 17 of 32: Telegram*\n\n"
         "What is your *Telegram group/channel link*?\n\n"
         "💡 *Example:* \"https://t.me/myproject\"\n"
         "💡 Type 'none' if you don't have a Telegram community",
@@ -1065,7 +1124,7 @@ async def get_telegram_link(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     context.user_data['telegram'] = update.message.text
     await update.message.reply_text(
         "✅ Perfect!\n\n"
-        "📚 *Step 17 of 26: Documentation*\n\n"
+        "📚 *Step 18 of 32: Documentation*\n\n"
         "What is your *documentation link*?\n\n"
         "💡 *Example:* \"https://docs.myproject.com\"\n"
         "💡 Type 'none' if you don't have documentation yet",
@@ -1079,7 +1138,7 @@ async def get_docs(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     context.user_data['docs'] = update.message.text
     await update.message.reply_text(
         "✅ Great!\n\n"
-        "🐦 *Step 18 of 26: X (Twitter)*\n\n"
+        "🐦 *Step 19 of 32: X (Twitter)*\n\n"
         "What is your *X/Twitter profile link*?\n\n"
         "💡 *Example:* \"https://x.com/myproject\"\n"
         "💡 Type 'none' if you don't have an X/Twitter profile",
@@ -1093,7 +1152,7 @@ async def get_x_twitter(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
     context.user_data['x_twitter'] = update.message.text
     await update.message.reply_text(
         "✅ Saved!\n\n"
-        "💻 *Step 19 of 26: GitHub*\n\n"
+        "💻 *Step 20 of 32: GitHub*\n\n"
         "What is your *GitHub repository link*?\n\n"
         "💡 *Example:* \"https://github.com/myproject\"\n"
         "💡 Type 'none' if your code isn't open source",
@@ -1107,7 +1166,7 @@ async def get_github(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     context.user_data['github'] = update.message.text
     await update.message.reply_text(
         "✅ Got it!\n\n"
-        "📺 *Step 20 of 26: YouTube*\n\n"
+        "📺 *Step 21 of 32: YouTube*\n\n"
         "What is your *YouTube channel link*?\n\n"
         "💡 *Example:* \"https://youtube.com/@myproject\"\n"
         "💡 Type 'none' if you don't have a YouTube channel",
@@ -1121,7 +1180,7 @@ async def get_youtube(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
     context.user_data['youtube'] = update.message.text
     await update.message.reply_text(
         "✅ Noted!\n\n"
-        "📝 *Step 21 of 26: Medium*\n\n"
+        "📝 *Step 22 of 32: Medium*\n\n"
         "What is your *Medium blog link*?\n\n"
         "💡 *Example:* \"https://medium.com/myproject\"\n"
         "💡 Type 'none' if you don't have a Medium blog",
@@ -1135,7 +1194,7 @@ async def get_medium(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     context.user_data['medium'] = update.message.text
     await update.message.reply_text(
         "✅ Great!\n\n"
-        "📅 *Step 22 of 26: Calendly*\n\n"
+        "📅 *Step 23 of 32: Calendly*\n\n"
         "What is your *Calendly booking link*?\n\n"
         "💡 This allows investors to schedule meetings with you\n"
         "💡 *Example:* \"https://calendly.com/myproject\"\n"
@@ -1150,7 +1209,7 @@ async def get_calendly(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
     context.user_data['calendly'] = update.message.text
     await update.message.reply_text(
         "✅ Perfect!\n\n"
-        "💳 *Step 23 of 26: Insider Allocation Payout Address*\n\n"
+        "💳 *Step 24 of 32: Insider Allocation Payout Address*\n\n"
         "What is the *wallet address* for insider allocation payouts?\n\n"
         "💡 This is where performance package tokens will be sent\n"
         "💡 Type 'skip' if you didn't allocate a performance package",
@@ -1164,7 +1223,7 @@ async def get_insider_payout_address(update: Update, context: ContextTypes.DEFAU
     context.user_data['insider_payout_address'] = update.message.text
     await update.message.reply_text(
         "✅ Saved!\n\n"
-        "👥 *Step 24 of 26: Spending Limit Members Addresses*\n\n"
+        "👥 *Step 25 of 32: Spending Limit Members Addresses*\n\n"
         "Please provide *wallet addresses* for spending limit members (up to 10):\n\n"
         "💡 These addresses will have spending authority up to the limit\n"
         "💡 Separate multiple addresses with commas\n"
@@ -1179,7 +1238,7 @@ async def get_spending_limit_addresses(update: Update, context: ContextTypes.DEF
     context.user_data['spending_limit_addresses'] = update.message.text
     await update.message.reply_text(
         "✅ Great!\n\n"
-        "📰 *Step 25 of 26: X Article About the Project*\n\n"
+        "📰 *Step 26 of 32: X Article About the Project*\n\n"
         "Please provide a *link to an X/Twitter article* about your project:\n\n"
         "💡 This could be an announcement thread, detailed explanation, or project overview\n"
         "💡 Type 'none' if you don't have one yet",
@@ -1193,7 +1252,7 @@ async def get_x_article(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
     context.user_data['x_article'] = update.message.text
     await update.message.reply_text(
         "✅ Almost done!\n\n"
-        "👤 *Step 26 of 26: Founders' Socials and Speeches*\n\n"
+        "👤 *Step 27 of 32: Founders' Socials and Speeches*\n\n"
         "Please provide *links to founders' social media profiles and any speeches/presentations*:\n\n"
         "💡 Include X/Twitter, LinkedIn, YouTube talks, podcast appearances, etc.\n"
         "💡 Separate multiple links with commas\n"
@@ -1208,6 +1267,109 @@ async def get_founders_socials(update: Update, context: ContextTypes.DEFAULT_TYP
     
     context.user_data['founders_socials'] = update.message.text
     
+    await update.message.reply_text(
+        "✅ Excellent!\n\n"
+        "👥 *Step 28 of 32: Team Background*\n\n"
+        "Please provide information about your team:\n\n"
+        "💡 *What to include:*\n"
+        "• Size of your team\n"
+        "• Technical highlights and expertise\n"
+        "• Founder backgrounds and achievements\n"
+        "• Relevant experience in the industry\n\n"
+        "💡 *Example:* \"Team of 8 members including 4 engineers with backgrounds from Google and Meta. Founder previously built a DeFi protocol with $50M TVL.\"",
+        parse_mode='Markdown'
+    )
+    return TEAM_BACKGROUND
+
+async def get_team_background(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    if not context.user_data.get('get_listed_active'):
+        return ConversationHandler.END
+    
+    context.user_data['team_background'] = update.message.text
+    
+    await update.message.reply_text(
+        "✅ Great!\n\n"
+        "📅 *Step 29 of 32: Timeline*\n\n"
+        "Please provide your project timeline:\n\n"
+        "💡 *What to include:*\n"
+        "• When was the project formed?\n"
+        "• Current progress stage (concept, development, testnet, mainnet)\n"
+        "• Anticipated mainnet launch date (if applicable)\n"
+        "• Key milestones achieved so far\n\n"
+        "💡 *Example:* \"Founded in Q2 2024. Currently on testnet with 10K+ users. Mainnet launch planned for Q1 2025.\"",
+        parse_mode='Markdown'
+    )
+    return TIMELINE
+
+async def get_timeline(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    if not context.user_data.get('get_listed_active'):
+        return ConversationHandler.END
+    
+    context.user_data['timeline'] = update.message.text
+    
+    await update.message.reply_text(
+        "✅ Perfect!\n\n"
+        "🏆 *Step 30 of 32: Recognition & Achievements*\n\n"
+        "Please share any recognition your project has received:\n\n"
+        "💡 *What to include:*\n"
+        "• VC backing and funding rounds\n"
+        "• Accelerator programs (Y Combinator, Techstars, etc.)\n"
+        "• Awards and competitions won\n"
+        "• Notable partnerships or collaborations\n"
+        "• Media coverage or press mentions\n\n"
+        "💡 *Example:* \"Backed by Solana Ventures and Multicoin Capital. Graduate of Alliance DAO. Winner of Solana Hackathon 2024.\"\n"
+        "💡 Type 'none' if you don't have any recognition yet",
+        parse_mode='Markdown'
+    )
+    return RECOGNITION
+
+async def get_recognition(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    if not context.user_data.get('get_listed_active'):
+        return ConversationHandler.END
+    
+    context.user_data['recognition'] = update.message.text
+    
+    await update.message.reply_text(
+        "✅ Awesome!\n\n"
+        "🎯 *Step 31 of 32: Competitors & Market Vision*\n\n"
+        "Please describe your competitive landscape and market vision:\n\n"
+        "💡 *What to include:*\n"
+        "• Who are your main competitors?\n"
+        "• What differentiates you from them?\n"
+        "• Your vision for the future market\n"
+        "• Market size and growth potential\n"
+        "• Your unique positioning\n\n"
+        "💡 *Example:* \"Competing with Uniswap and Jupiter, but focused on privacy-first swaps. We see the privacy DEX market growing to $10B+ as regulations tighten.\"",
+        parse_mode='Markdown'
+    )
+    return COMPETITORS_VISION
+
+async def get_competitors_vision(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    if not context.user_data.get('get_listed_active'):
+        return ConversationHandler.END
+    
+    context.user_data['competitors_vision'] = update.message.text
+    
+    await update.message.reply_text(
+        "✅ Final step!\n\n"
+        "📝 *Step 32 of 32: Miscellaneous*\n\n"
+        "Is there anything else you'd like to share about your project?\n\n"
+        "💡 *This could include:*\n"
+        "• Additional context not covered above\n"
+        "• Special considerations or requirements\n"
+        "• Unique aspects of your project\n"
+        "• Any other relevant information\n\n"
+        "💡 Type 'none' if you don't have anything else to add",
+        parse_mode='Markdown'
+    )
+    return MISC
+
+async def get_misc(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    if not context.user_data.get('get_listed_active'):
+        return ConversationHandler.END
+    
+    context.user_data['misc'] = update.message.text
+    
     # Inform user that data is being processed
     await update.message.reply_text(
         "⏳ *Processing your submission...*\n\n"
@@ -1219,6 +1381,7 @@ async def get_founders_socials(update: Update, context: ContextTypes.DEFAULT_TYP
         'founder_email': context.user_data.get('founder_email', ''),
         'project_email': context.user_data.get('project_email', ''),
         'project_name_short': context.user_data.get('project_name_short', ''),
+        'project_category': context.user_data.get('project_category', ''),
         'project_desc_long': context.user_data.get('project_desc_long', ''),
         'token_name': context.user_data.get('token_name', ''),
         'token_ticker': context.user_data.get('token_ticker', ''),
@@ -1242,6 +1405,11 @@ async def get_founders_socials(update: Update, context: ContextTypes.DEFAULT_TYP
         'spending_limit_addresses': context.user_data.get('spending_limit_addresses', ''),
         'x_article': context.user_data.get('x_article', ''),
         'founders_socials': context.user_data.get('founders_socials', ''),
+        'team_background': context.user_data.get('team_background', ''),
+        'timeline': context.user_data.get('timeline', ''),
+        'recognition': context.user_data.get('recognition', ''),
+        'competitors_vision': context.user_data.get('competitors_vision', ''),
+        'misc': context.user_data.get('misc', ''),
         'founder_username': update.effective_user.username or 'no_username',
         'founder_id': update.effective_user.id
     }
@@ -1314,6 +1482,7 @@ async def get_application():
                 FOUNDER_EMAIL: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_founder_email)],
                 PROJECT_EMAIL: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_project_email)],
                 PROJECT_NAME_SHORT: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_project_name_short)],
+                PROJECT_CATEGORY: [CallbackQueryHandler(get_project_category, pattern='^category_')],
                 PROJECT_DESC_LONG: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_project_desc_long)],
                 TOKEN_NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_token_name)],
                 TOKEN_TICKER: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_token_ticker)],
@@ -1337,6 +1506,11 @@ async def get_application():
                 SPENDING_LIMIT_ADDRESSES: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_spending_limit_addresses)],
                 X_ARTICLE: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_x_article)],
                 FOUNDERS_SOCIALS: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_founders_socials)],
+                TEAM_BACKGROUND: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_team_background)],
+                TIMELINE: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_timeline)],
+                RECOGNITION: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_recognition)],
+                COMPETITORS_VISION: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_competitors_vision)],
+                MISC: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_misc)],
             },
             fallbacks=[CommandHandler('cancel', get_listed_cancel, filters=filters.ChatType.PRIVATE)],
         )
